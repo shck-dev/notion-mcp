@@ -1,5 +1,5 @@
 {
-  "name": "@anthropic-labs/notion-mcp",
+  "name": "@shck-dev/notion-mcp",
   "version": "0.1.0",
   "description": "MCP server for Notion using internal API — no workspace admin needed",
   "type": "module",

@@ -1,4 +1,4 @@
-# @shck/notion-mcp
+# @shck-dev/notion-mcp
 
 MCP server for Notion using the **internal API** (cookie auth). No workspace admin access or OAuth integration setup needed — just your browser cookie.
 
@@ -41,7 +41,7 @@ The official Notion API requires workspace admin to create an integration, then 
 #### Claude Code
 
 ```bash
-claude mcp add notion -- env NOTION_TOKEN=your_token NOTION_USER_ID=your_user_id NOTION_SPACE_ID=your_space_id bunx @shck/notion-mcp
+claude mcp add notion -- env NOTION_TOKEN=your_token NOTION_USER_ID=your_user_id NOTION_SPACE_ID=your_space_id bunx @shck-dev/notion-mcp
 ```
 
 Or in `.mcp.json`:

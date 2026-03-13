@@ -1,0 +1,29 @@
+{
+  "name": "@anthropic-labs/notion-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Notion using internal API — no workspace admin needed",
+  "type": "module",
+  "bin": {
+    "notion-mcp": "src/server.ts"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "typecheck": "bun tsc --noEmit"
+  },
+  "keywords": [
+    "notion",
+    "mcp",
+    "model-context-protocol",
+    "markdown",
+    "claude"
+  ],
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

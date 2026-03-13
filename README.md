@@ -51,7 +51,7 @@ Or in `.mcp.json`:
   "mcpServers": {
     "notion": {
       "command": "bunx",
-      "args": ["@shck/notion-mcp"],
+      "args": ["@shck-dev/notion-mcp"],
       "env": {
         "NOTION_TOKEN": "your_token_v2_value",
         "NOTION_USER_ID": "your_user_id",
@@ -71,7 +71,7 @@ Add to `claude_desktop_config.json`:
   "mcpServers": {
     "notion": {
       "command": "bunx",
-      "args": ["@shck/notion-mcp"],
+      "args": ["@shck-dev/notion-mcp"],
       "env": {
         "NOTION_TOKEN": "your_token_v2_value",
         "NOTION_USER_ID": "your_user_id",

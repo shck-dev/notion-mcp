@@ -4,32 +4,27 @@ export function startStdioTransport(handler: MessageHandler): void {
   let buffer = '';
 
   process.stdin.setEncoding('utf-8');
+  process.stdin.resume();
   process.stdin.on('data', async (chunk: string) => {
     buffer += chunk;
-    while (true) {
-      const headerEnd = buffer.indexOf('\r\n\r\n');
-      if (headerEnd === -1) break;
 
-      const header = buffer.slice(0, headerEnd);
-      const lengthMatch = header.match(/Content-Length:\s*(\d+)/i);
-      if (!lengthMatch) {
-        buffer = buffer.slice(headerEnd + 4);
-        continue;
-      }
+    // Split on newlines — each line is a complete JSON-RPC message
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? ''; // last element is incomplete (or empty)
 
-      const contentLength = Number(lengthMatch[1]);
-      const bodyStart = headerEnd + 4;
-      if (buffer.length < bodyStart + contentLength) break;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
 
-      const body = buffer.slice(bodyStart, bodyStart + contentLength);
-      buffer = buffer.slice(bodyStart + contentLength);
+      // Skip Content-Length headers (for backward compat)
+      if (trimmed.startsWith('Content-Length:')) continue;
 
       try {
-        const msg = JSON.parse(body);
+        const msg = JSON.parse(trimmed);
         const response = await handler(msg);
         if (response) {
           const responseStr = JSON.stringify(response);
-          process.stdout.write(`Content-Length: ${Buffer.byteLength(responseStr)}\r\n\r\n${responseStr}`);
+          process.stdout.write(responseStr + '\n');
         }
       } catch (err: any) {
         process.stderr.write(`Parse error: ${err.message}\n`);

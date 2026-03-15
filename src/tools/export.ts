@@ -32,17 +32,23 @@ export async function exportPageMarkdown(config: NotionConfig, pageId: string): 
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'notion-export-'));
       try {
         // Download the zip
-        const zipRes = await fetch(task.status.exportURL);
+        const zipRes = await fetch(task.status.exportURL, {
+          headers: {
+            cookie: `token_v2=${config.token}; notion_user_id=${config.userId}`,
+          },
+        });
         if (!zipRes.ok) throw new Error(`Download failed: ${zipRes.status}`);
 
         const zipBuffer = Buffer.from(await zipRes.arrayBuffer());
         const zipPath = path.join(tmpDir, 'export.zip');
         fs.writeFileSync(zipPath, zipBuffer);
 
-        // Extract with unzip via Bun.spawn
-        const proc = Bun.spawnSync(['unzip', '-o', zipPath, '-d', tmpDir]);
-        if (proc.exitCode !== 0) {
-          throw new Error(`unzip failed (exit ${proc.exitCode}): ${proc.stderr.toString().slice(0, 200)}`);
+        // Extract with unzip
+        const { execSync } = await import('child_process');
+        try {
+          execSync(`unzip -o "${zipPath}" -d "${tmpDir}"`, { stdio: 'pipe' });
+        } catch (e: any) {
+          throw new Error(`unzip failed: ${e.stderr?.toString().slice(0, 200)}`);
         }
 
         // Find the .md file

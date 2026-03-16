@@ -1,3 +1,5 @@
+[![MCP Badge](https://lobehub.com/badge/mcp/shck-dev-notion-mcp)](https://lobehub.com/mcp/shck-dev-notion-mcp)
+
 # @shck-dev/notion-mcp
 
 MCP server for Notion using the **internal API** (cookie auth). No workspace admin access or OAuth integration setup needed — just your browser cookie.

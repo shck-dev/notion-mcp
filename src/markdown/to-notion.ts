@@ -127,7 +127,7 @@ export function markdownToNotionBlocks(markdown: string, parentId: string): Noti
       continue;
     }
 
-    // Table
+    // Table — creates native Notion table + table_row blocks
     if (line.includes('|') && line.trim().startsWith('|')) {
       const tableLines: string[] = [];
       while (i < lines.length && lines[i].includes('|') && lines[i].trim().startsWith('|')) {
@@ -137,8 +137,36 @@ export function markdownToNotionBlocks(markdown: string, parentId: string): Noti
       const rows = tableLines
         .filter((l) => !l.match(/^\|[\s-:|]+\|$/))
         .map((l) => l.split('|').slice(1, -1).map((cell) => cell.trim()));
-      for (const row of rows) {
-        addBlock('text', { title: richText(row.join(' | ')) });
+      if (rows.length > 0) {
+        const colCount = rows[0].length;
+        const columnOrder = Array.from({ length: colCount }, () => crypto.randomUUID());
+
+        const tableChildren: NotionBlock[] = [];
+        let prevRowId: string | undefined;
+        for (const row of rows) {
+          const rowId = crypto.randomUUID();
+          const rowProps: Record<string, any> = {};
+          for (let c = 0; c < colCount; c++) {
+            rowProps[columnOrder[c]] = richText(row[c] ?? '');
+          }
+          tableChildren.push({ id: rowId, type: 'table_row', properties: rowProps, after: prevRowId });
+          prevRowId = rowId;
+        }
+
+        const tableId = crypto.randomUUID();
+        blocks.push({
+          id: tableId,
+          type: 'table',
+          properties: {},
+          format: {
+            table_block_column_order: columnOrder,
+            table_block_column_header: true,
+            table_block_column_format: columnOrder.map(() => ({ width: Math.floor(900 / colCount), color: 'default' })),
+          },
+          after: prevId,
+          children: tableChildren,
+        });
+        prevId = tableId;
       }
       continue;
     }

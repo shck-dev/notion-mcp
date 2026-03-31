@@ -8,7 +8,9 @@ export interface NotionBlock {
   id: string;
   type: string;
   properties: Record<string, any>;
+  format?: Record<string, any>;
   after?: string;
+  children?: NotionBlock[];
 }
 
 export type RichTextSegment = [string] | [string, Array<[string, string?]>];

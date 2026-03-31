@@ -55,20 +55,24 @@ export async function importMarkdownToPage(
   // 4. Create new blocks in a separate transaction
   const createOps: any[] = [];
   for (const block of newBlocks) {
+    const blockArgs: Record<string, any> = {
+      type: block.type,
+      id: block.id,
+      parent_id: id,
+      parent_table: 'block',
+      alive: true,
+      properties: block.properties,
+      space_id: config.spaceId,
+    };
+    if (block.format) {
+      blockArgs.format = block.format;
+    }
     createOps.push({
       id: block.id,
       table: 'block',
       path: [],
       command: 'set',
-      args: {
-        type: block.type,
-        id: block.id,
-        parent_id: id,
-        parent_table: 'block',
-        alive: true,
-        properties: block.properties,
-        space_id: config.spaceId,
-      },
+      args: blockArgs,
     });
     createOps.push({
       id,
@@ -84,6 +88,34 @@ export async function importMarkdownToPage(
       command: 'update',
       args: { created_time: Date.now(), last_edited_time: Date.now() },
     });
+
+    // Handle children (e.g. table_row blocks inside table)
+    if (block.children) {
+      for (const child of block.children) {
+        createOps.push({
+          id: child.id,
+          table: 'block',
+          path: [],
+          command: 'set',
+          args: {
+            type: child.type,
+            id: child.id,
+            parent_id: block.id,
+            parent_table: 'block',
+            alive: true,
+            properties: child.properties,
+            space_id: config.spaceId,
+          },
+        });
+        createOps.push({
+          id: block.id,
+          table: 'block',
+          path: ['content'],
+          command: 'listAfter',
+          args: { id: child.id, ...(child.after ? { after: child.after } : {}) },
+        });
+      }
+    }
   }
 
   await notionPost(config, 'submitTransaction', {

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.shck-dev/notion-mcp",
+  "description": "Notion MCP server — search, export, and import pages as markdown",
+  "repository": {
+    "url": "https://github.com/shck-dev/notion-mcp",
+    "source": "github"
+  },
+  "version": "0.1.8",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@shck-dev/notion-mcp",
+      "version": "0.1.8",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "NOTION_TOKEN",
+          "description": "Notion token_v2 cookie value from browser DevTools",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "NOTION_USER_ID",
+          "description": "Notion user ID from x-notion-active-user-header",
+          "isRequired": true,
+          "isSecret": false
+        },
+        {
+          "name": "NOTION_SPACE_ID",
+          "description": "Notion workspace ID from API request body",
+          "isRequired": true,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

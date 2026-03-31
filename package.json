@@ -1,7 +1,8 @@
 {
   "name": "@shck-dev/notion-mcp",
-  "version": "0.1.5",
-  "description": "MCP server for Notion using internal API — no workspace admin needed",
+  "version": "0.1.8",
+  "mcpName": "io.github.shck-dev/notion-mcp",
+  "description": "MCP server for Notion using internal API — search, export, and import pages as markdown. No workspace admin or OAuth needed, just your browser cookie.",
   "type": "module",
   "bin": {
     "notion-mcp": "src/server.ts"
@@ -19,10 +20,32 @@
   "keywords": [
     "notion",
     "mcp",
+    "mcp-server",
     "model-context-protocol",
     "markdown",
-    "claude"
+    "claude",
+    "ai",
+    "llm",
+    "notion-api",
+    "export",
+    "import",
+    "search",
+    "productivity",
+    "cursor",
+    "claude-desktop"
   ],
+  "author": {
+    "name": "shck-dev",
+    "url": "https://github.com/shck-dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shck-dev/notion-mcp.git"
+  },
+  "homepage": "https://shck.dev/blog/notion-mcp",
+  "bugs": {
+    "url": "https://github.com/shck-dev/notion-mcp/issues"
+  },
   "license": "MIT",
   "engines": {
     "bun": ">=1.0.0"

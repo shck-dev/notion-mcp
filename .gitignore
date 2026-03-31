@@ -3,3 +3,6 @@ node_modules/
 .DS_Store
 .env
 .env.test
+start.sh
+.mcpregistry_*
+package-lock.json

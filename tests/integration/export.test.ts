@@ -60,9 +60,10 @@ describeIntegration('integration: Notion API', () => {
     expect(md.length).toBeGreaterThan(0);
   });
 
-  test('exportPageMarkdown with nonexistent page returns empty', async () => {
-    const md = await exportPageMarkdown(config, '00000000000000000000000000000000');
-    expect(md.trim()).toBe('');
+  test('exportPageMarkdown with nonexistent page throws', async () => {
+    await expect(
+      exportPageMarkdown(config, '00000000000000000000000000000000')
+    ).rejects.toThrow(/not found/);
   });
 
   test('export "Click me to see even more detail" page', async () => {

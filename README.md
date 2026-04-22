@@ -24,6 +24,8 @@ Just paste 3 values from your browser and go.
 - **Search** — full-text search across your entire workspace
 - **Export** — download any page as clean markdown (headings, lists, code blocks, tables, links)
 - **Import** — write markdown back to Notion pages, from a string or local file
+- **Create** — spin up new child pages, optionally prefilled from a markdown string or file
+- **Comments** — list open discussions, add new comments, reply to threads
 - **Zero setup friction** — uses the same internal API as the Notion web app; if you can see it in your browser, this server can access it
 
 ## Tools
@@ -32,8 +34,13 @@ Just paste 3 values from your browser and go.
 |------|-------------|
 | `notion_search` | Full-text search across all pages in your workspace |
 | `notion_export_page` | Export any Notion page as markdown |
-| `notion_import_page` | Write markdown content to a Notion page |
+| `notion_import_page` | Write markdown content to a Notion page (replaces content) |
 | `notion_import_page_from_file` | Write a local `.md` file to a Notion page |
+| `notion_create_page` | Create a new sub-page, optionally prefilled with markdown |
+| `notion_create_page_from_file` | Create a new sub-page from a local `.md` file |
+| `notion_list_comments` | List open discussion threads on a page |
+| `notion_add_comment` | Start a new discussion on a page or block |
+| `notion_reply_comment` | Reply to an existing discussion thread |
 
 ## Why not the official Notion API?
 

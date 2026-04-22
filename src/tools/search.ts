@@ -1,5 +1,5 @@
-import type { NotionConfig } from '../types.js';
-import { notionPost } from '../notion-client.js';
+import type { NotionConfig, NotionRawBlock } from '../types.js';
+import { notionPost, unwrapRecord } from '../notion-client.js';
 
 export async function searchPages(config: NotionConfig, query: string, limit = 10): Promise<string> {
   const data = await notionPost(config, 'search', {
@@ -24,9 +24,9 @@ export async function searchPages(config: NotionConfig, query: string, limit = 1
 
   const results: string[] = [];
   const blocks = data.recordMap?.block ?? {};
-  for (const [bid, block] of Object.entries(blocks) as any) {
-    const v = block.value ?? {};
-    if (v.type !== 'page') continue;
+  for (const [bid, entry] of Object.entries(blocks)) {
+    const v = unwrapRecord<NotionRawBlock>(entry);
+    if (!v || v.type !== 'page') continue;
     const title = v.properties?.title?.[0]?.[0] ?? '(untitled)';
     const id = bid.replace(/-/g, '');
     results.push(`${title}\n  ID: ${id}\n  URL: https://www.notion.so/${id}`);

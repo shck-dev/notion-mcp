@@ -9,6 +9,7 @@ import { searchPages } from './tools/search.js';
 import { exportPageMarkdown } from './tools/export.js';
 import { importMarkdownToPage, importMarkdownFromFile } from './tools/import.js';
 import { createPage, createPageFromFile } from './tools/create-page.js';
+import { listComments, addComment, replyComment } from './tools/comments.js';
 
 const config = loadConfig();
 
@@ -88,6 +89,42 @@ const TOOLS = [
       required: ['parent_page_id', 'title', 'file_path'],
     },
   },
+  {
+    name: 'notion_list_comments',
+    description: 'List all open comment discussions on a page (and its child blocks). Returns discussion IDs, anchored text context, authors, timestamps, and comment bodies. Use this to read feedback/review threads on any page.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        page_id: { type: 'string', description: 'Notion page ID (32-char hex) or full Notion URL' },
+        include_resolved: { type: 'boolean', description: 'Include resolved discussions (default: false)' },
+      },
+      required: ['page_id'],
+    },
+  },
+  {
+    name: 'notion_add_comment',
+    description: 'Start a new comment discussion on a page or block. Creates a top-level comment thread that appears as a Notion comment. Supports markdown-style **bold**, *italic*, `code`, and [links](url) in the text.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        block_id: { type: 'string', description: 'Notion page ID or block ID (32-char hex) or full Notion URL to attach the comment to' },
+        text: { type: 'string', description: 'Comment body (supports markdown inline formatting)' },
+      },
+      required: ['block_id', 'text'],
+    },
+  },
+  {
+    name: 'notion_reply_comment',
+    description: 'Reply to an existing comment discussion thread. Use the discussion ID returned from notion_list_comments or notion_add_comment.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        discussion_id: { type: 'string', description: 'Discussion ID (32-char hex) from list_comments or add_comment' },
+        text: { type: 'string', description: 'Reply body (supports markdown inline formatting)' },
+      },
+      required: ['discussion_id', 'text'],
+    },
+  },
 ];
 
 async function handleMessage(msg: any): Promise<any> {
@@ -102,7 +139,7 @@ async function handleMessage(msg: any): Promise<any> {
         capabilities: { tools: {} },
         serverInfo: {
           name: 'notion-mcp',
-          version: '0.1.8',
+          version: '0.2.0',
           title: 'Notion MCP Server',
           description: 'Search, export, and import Notion pages as markdown — no workspace admin or OAuth needed',
           websiteUrl: 'https://shck.dev/blog/notion-mcp',
@@ -141,6 +178,15 @@ async function handleMessage(msg: any): Promise<any> {
           break;
         case 'notion_create_page_from_file':
           text = await createPageFromFile(config, args.parent_page_id, args.title, args.file_path, args.icon);
+          break;
+        case 'notion_list_comments':
+          text = await listComments(config, args.page_id, args.include_resolved ?? false);
+          break;
+        case 'notion_add_comment':
+          text = await addComment(config, args.block_id, args.text);
+          break;
+        case 'notion_reply_comment':
+          text = await replyComment(config, args.discussion_id, args.text);
           break;
         default:
           throw new Error(`Unknown tool: ${name}`);

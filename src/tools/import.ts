@@ -1,6 +1,6 @@
 import * as fs from 'fs';
-import type { NotionConfig } from '../types.js';
-import { notionPost, parsePageId } from '../notion-client.js';
+import type { NotionConfig, NotionRawBlock } from '../types.js';
+import { notionPost, parsePageId, unwrapRecord } from '../notion-client.js';
 import { markdownToNotionBlocks } from '../markdown/to-notion.js';
 
 export async function importMarkdownToPage(
@@ -15,7 +15,7 @@ export async function importMarkdownToPage(
     requests: [{ pointer: { table: 'block', id }, version: -1 }],
   });
 
-  const pageBlock = syncData.recordMap?.block?.[id]?.value;
+  const pageBlock = unwrapRecord<NotionRawBlock>(syncData.recordMap?.block?.[id]);
   if (!pageBlock) throw new Error(`Page ${id} not found`);
 
   const existingChildren: string[] = pageBlock.content ?? [];

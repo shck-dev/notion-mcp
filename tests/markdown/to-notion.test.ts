@@ -135,11 +135,29 @@ describe('markdownToNotionBlocks', () => {
     expect(blocks[1].properties.title).toEqual([['line 2']]);
   });
 
-  test('table rows become text blocks', () => {
+  test('table becomes native Notion table with table_row children', () => {
     const md = '| A | B |\n| --- | --- |\n| 1 | 2 |';
     const blocks = markdownToNotionBlocks(md, parentId);
-    expect(blocks).toHaveLength(2); // header row + data row, separator filtered
-    expect(blocks[0].type).toBe('text');
-    expect(blocks[1].type).toBe('text');
+    expect(blocks).toHaveLength(1);
+
+    const table = blocks[0];
+    expect(table.type).toBe('table');
+    expect(table.format?.table_block_column_order).toHaveLength(2);
+    expect(table.format?.table_block_column_header).toBe(true);
+
+    const rows = table.children ?? [];
+    expect(rows).toHaveLength(2); // header row + data row, separator filtered
+    expect(rows[0].type).toBe('table_row');
+    expect(rows[1].type).toBe('table_row');
+
+    const [colA, colB] = table.format!.table_block_column_order as string[];
+    expect(rows[0].properties[colA]).toEqual([['A']]);
+    expect(rows[0].properties[colB]).toEqual([['B']]);
+    expect(rows[1].properties[colA]).toEqual([['1']]);
+    expect(rows[1].properties[colB]).toEqual([['2']]);
+
+    // Row chaining
+    expect(rows[0].after).toBeUndefined();
+    expect(rows[1].after).toBe(rows[0].id);
   });
 });

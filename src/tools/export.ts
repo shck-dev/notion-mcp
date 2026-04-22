@@ -1,5 +1,5 @@
 import type { NotionConfig, BlockMap } from '../types.js';
-import { notionPost, parsePageId } from '../notion-client.js';
+import { notionPost, parsePageId, normalizeBlockMap } from '../notion-client.js';
 import { blocksToMarkdown } from '../markdown/from-notion.js';
 
 export async function exportPageMarkdown(config: NotionConfig, pageId: string): Promise<string> {
@@ -17,7 +17,7 @@ export async function exportPageMarkdown(config: NotionConfig, pageId: string): 
       verticalColumns: false,
     });
 
-    Object.assign(allBlocks, data.recordMap?.block ?? {});
+    Object.assign(allBlocks, normalizeBlockMap(data.recordMap?.block));
 
     if (data.cursor?.stack?.length > 0) {
       cursor = data.cursor;
@@ -25,6 +25,10 @@ export async function exportPageMarkdown(config: NotionConfig, pageId: string): 
     } else {
       break;
     }
+  }
+
+  if (!allBlocks[id]) {
+    throw new Error(`Page ${id} not found in response (check credentials or page access)`);
   }
 
   return blocksToMarkdown(allBlocks, id);

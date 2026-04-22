@@ -1,7 +1,70 @@
-import type { NotionConfig, RichTextSegment } from '../types.js';
+import type { NotionConfig, NotionRawBlock, RichTextSegment } from '../types.js';
 import { notionPost, parsePageId, unwrapRecord } from '../notion-client.js';
 import { richText } from '../markdown/to-notion.js';
 import { richTextToMarkdown } from '../markdown/from-notion.js';
+
+type Decoration = [string, string?] | [string, string];
+
+/**
+ * Splice a Notion rich-text array so that the span matching `anchor` gets an
+ * extra ['m', discussionId] decoration. Returns the new segments plus the
+ * marked portion (used as the discussion's `context`).
+ *
+ * Supports the common case: `anchor` matches a contiguous substring of the
+ * concatenated plaintext. Segments that intersect the anchor are split so the
+ * marker only decorates the matched region. Existing decorations on those
+ * segments are preserved.
+ */
+export function injectMarker(
+  segments: RichTextSegment[],
+  anchor: string,
+  discussionId: string,
+): { segments: RichTextSegment[]; context: RichTextSegment[] } {
+  if (!anchor) throw new Error('anchor_text must not be empty');
+
+  const plain = segments.map((s) => s[0] ?? '').join('');
+  const start = plain.indexOf(anchor);
+  if (start < 0) {
+    throw new Error(`anchor_text not found in block title: ${JSON.stringify(anchor)}`);
+  }
+  const end = start + anchor.length;
+
+  const out: RichTextSegment[] = [];
+  const context: RichTextSegment[] = [];
+  let offset = 0;
+
+  for (const seg of segments) {
+    const segText = seg[0] ?? '';
+    const segDecos = (seg[1] as Decoration[] | undefined) ?? [];
+    const segStart = offset;
+    const segEnd = offset + segText.length;
+    offset = segEnd;
+
+    if (segEnd <= start || segStart >= end || segText.length === 0) {
+      // Entirely outside the anchor region (or empty) — keep as-is.
+      out.push(seg);
+      continue;
+    }
+
+    const localStart = Math.max(0, start - segStart);
+    const localEnd = Math.min(segText.length, end - segStart);
+
+    const before = segText.slice(0, localStart);
+    const middle = segText.slice(localStart, localEnd);
+    const after = segText.slice(localEnd);
+
+    if (before) out.push(segDecos.length ? [before, segDecos] : [before]);
+
+    const markedDecos: Decoration[] = [...segDecos, ['m', discussionId]];
+    const markedSeg: RichTextSegment = [middle, markedDecos];
+    out.push(markedSeg);
+    context.push(markedSeg);
+
+    if (after) out.push(segDecos.length ? [after, segDecos] : [after]);
+  }
+
+  return { segments: out, context };
+}
 
 interface DiscussionRecord {
   id: string;
@@ -92,12 +155,17 @@ export async function listComments(
 }
 
 /**
- * Add a new comment (starts a new discussion) on a page or specific block.
+ * Start a new discussion on a block. When `anchorText` is provided, the
+ * comment is anchored inline — a marker decoration is added to the matching
+ * span in the block's title and the discussion's `context` is set to that
+ * span (this is how Notion renders the yellow-highlighted commented text).
+ * Without `anchorText`, the discussion attaches at the block level.
  */
 export async function addComment(
   config: NotionConfig,
   blockId: string,
   text: string,
+  anchorText?: string,
 ): Promise<string> {
   const targetId = parsePageId(blockId);
   const discussionId = crypto.randomUUID();
@@ -105,6 +173,17 @@ export async function addComment(
   const now = Date.now();
 
   const rt = richText(text);
+
+  const discussionArgs: Record<string, any> = {
+    id: discussionId,
+    version: 1,
+    parent_id: targetId,
+    parent_table: 'block',
+    comments: [commentId],
+    resolved: false,
+    space_id: config.spaceId,
+    type: 'default',
+  };
 
   const ops: any[] = [
     {
@@ -128,21 +207,37 @@ export async function addComment(
         space_id: config.spaceId,
       },
     },
+  ];
+
+  if (anchorText) {
+    // Pull the block's current title, splice in the marker decoration.
+    const sync = await notionPost(config, 'syncRecordValues', {
+      requests: [{ pointer: { table: 'block', id: targetId }, version: -1 }],
+    });
+    const block = unwrapRecord<NotionRawBlock>(sync.recordMap?.block?.[targetId]);
+    if (!block) throw new Error(`Block ${targetId} not found`);
+
+    const title = (block.properties?.title as RichTextSegment[] | undefined) ?? [];
+    const { segments: newTitle, context } = injectMarker(title, anchorText, discussionId);
+
+    discussionArgs.context = context;
+
+    ops.push({
+      id: targetId,
+      table: 'block',
+      path: ['properties', 'title'],
+      command: 'set',
+      args: newTitle,
+    });
+  }
+
+  ops.push(
     {
       id: discussionId,
       table: 'discussion',
       path: [],
       command: 'set',
-      args: {
-        id: discussionId,
-        version: 1,
-        parent_id: targetId,
-        parent_table: 'block',
-        comments: [commentId],
-        resolved: false,
-        space_id: config.spaceId,
-        type: 'default',
-      },
+      args: discussionArgs,
     },
     {
       id: targetId,
@@ -158,14 +253,15 @@ export async function addComment(
       command: 'update',
       args: { last_edited_time: now },
     },
-  ];
+  );
 
   await notionPost(config, 'submitTransaction', {
     requestId: crypto.randomUUID(),
     transactions: [{ id: crypto.randomUUID(), spaceId: config.spaceId, operations: ops }],
   });
 
-  return `Added comment ${commentId.replace(/-/g, '')} in new discussion ${discussionId.replace(/-/g, '')} on block ${targetId.replace(/-/g, '')}`;
+  const mode = anchorText ? `inline on "${anchorText}"` : 'block-level';
+  return `Added ${mode} comment ${commentId.replace(/-/g, '')} in new discussion ${discussionId.replace(/-/g, '')} on block ${targetId.replace(/-/g, '')}`;
 }
 
 /**

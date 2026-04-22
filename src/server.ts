@@ -103,12 +103,13 @@ const TOOLS = [
   },
   {
     name: 'notion_add_comment',
-    description: 'Start a new comment discussion on a page or block. Creates a top-level comment thread that appears as a Notion comment. Supports markdown-style **bold**, *italic*, `code`, and [links](url) in the text.',
+    description: 'Start a new comment discussion on a block. If `anchor_text` is provided, the comment is anchored inline to that exact substring of the block\'s text (the Notion UI highlights it yellow). Without `anchor_text`, the discussion attaches at the block level. Supports markdown **bold**, *italic*, `code`, and [links](url) in the comment body.',
     inputSchema: {
       type: 'object',
       properties: {
-        block_id: { type: 'string', description: 'Notion page ID or block ID (32-char hex) or full Notion URL to attach the comment to' },
+        block_id: { type: 'string', description: 'Notion block ID (32-char hex) — the block containing the text to comment on. A page ID also works (block-level only).' },
         text: { type: 'string', description: 'Comment body (supports markdown inline formatting)' },
+        anchor_text: { type: 'string', description: 'Optional: substring of the block\'s text to anchor the comment to (inline comment). Must match exactly.' },
       },
       required: ['block_id', 'text'],
     },
@@ -183,7 +184,7 @@ async function handleMessage(msg: any): Promise<any> {
           text = await listComments(config, args.page_id, args.include_resolved ?? false);
           break;
         case 'notion_add_comment':
-          text = await addComment(config, args.block_id, args.text);
+          text = await addComment(config, args.block_id, args.text, args.anchor_text);
           break;
         case 'notion_reply_comment':
           text = await replyComment(config, args.discussion_id, args.text);

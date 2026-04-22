@@ -39,7 +39,7 @@ Just paste 3 values from your browser and go.
 | `notion_create_page` | Create a new sub-page, optionally prefilled with markdown |
 | `notion_create_page_from_file` | Create a new sub-page from a local `.md` file |
 | `notion_list_comments` | List open discussion threads on a page |
-| `notion_add_comment` | Start a new discussion on a page or block |
+| `notion_add_comment` | Start a new discussion — inline (anchored to text) or block-level |
 | `notion_reply_comment` | Reply to an existing discussion thread |
 
 ## Why not the official Notion API?

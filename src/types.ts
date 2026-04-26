@@ -11,6 +11,7 @@ export interface NotionBlock {
   format?: Record<string, any>;
   after?: string;
   children?: NotionBlock[];
+  imageUpload?: { localPath: string; name: string; contentType: string; bytes: number };
 }
 
 export type RichTextSegment = [string] | [string, Array<[string, string?]>];

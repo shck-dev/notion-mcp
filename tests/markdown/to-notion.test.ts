@@ -1,4 +1,7 @@
 import { describe, test, expect } from 'bun:test';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { richText, markdownToNotionBlocks } from '../../src/markdown/to-notion.js';
 
 describe('richText', () => {
@@ -133,6 +136,43 @@ describe('markdownToNotionBlocks', () => {
     expect(blocks).toHaveLength(2);
     expect(blocks[0].properties.title).toEqual([['line 1']]);
     expect(blocks[1].properties.title).toEqual([['line 2']]);
+  });
+
+  test('standalone local image becomes single image block with imageUpload', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'notion-mcp-img-'));
+    const imgPath = path.join(tmpDir, 'cat.png');
+    const fakeBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    fs.writeFileSync(imgPath, fakeBytes);
+
+    const blocks = markdownToNotionBlocks('![cat](./cat.png)', parentId, tmpDir);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('image');
+    expect(blocks[0].imageUpload).toBeDefined();
+    expect(blocks[0].imageUpload!.name).toBe('cat.png');
+    expect(blocks[0].imageUpload!.contentType).toBe('image/png');
+    expect(blocks[0].imageUpload!.bytes).toBe(fakeBytes.length);
+    expect(blocks[0].imageUpload!.localPath).toBe(path.resolve(tmpDir, 'cat.png'));
+    // Pre-generated UUID — not the parentId — so upload scope matches the block.
+    expect(blocks[0].id).not.toBe(parentId);
+    expect(blocks[0].id).toMatch(/^[0-9a-f-]{36}$/);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('inline image inside paragraph does NOT trigger local upload', () => {
+    const blocks = markdownToNotionBlocks('see ![alt](./local.png) here', parentId, '/tmp');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('text');
+    expect(blocks[0].imageUpload).toBeUndefined();
+  });
+
+  test('http(s) image url skips upload and embeds directly', () => {
+    const blocks = markdownToNotionBlocks('![alt](https://example.com/x.png)', parentId);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('image');
+    expect(blocks[0].imageUpload).toBeUndefined();
+    expect(blocks[0].properties.source).toEqual([['https://example.com/x.png']]);
+    expect(blocks[0].format?.display_source).toBe('https://example.com/x.png');
   });
 
   test('table becomes native Notion table with table_row children', () => {

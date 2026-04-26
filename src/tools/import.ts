@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import type { NotionConfig, NotionRawBlock } from '../types.js';
 import { notionPost, parsePageId, unwrapRecord } from '../notion-client.js';
 import { markdownToNotionBlocks } from '../markdown/to-notion.js';
@@ -7,6 +8,7 @@ export async function importMarkdownToPage(
   config: NotionConfig,
   pageId: string,
   markdown: string,
+  baseDir?: string,
 ): Promise<string> {
   const id = parsePageId(pageId);
 
@@ -17,6 +19,9 @@ export async function importMarkdownToPage(
 
   const pageBlock = unwrapRecord<NotionRawBlock>(syncData.recordMap?.block?.[id]);
   if (!pageBlock) throw new Error(`Page ${id} not found`);
+  if ((pageBlock as any).alive === false) {
+    throw new Error(`Page ${id} is archived/trashed. Restore it before importing — writes to archived pages are silently invisible.`);
+  }
 
   const existingChildren: string[] = pageBlock.content ?? [];
 
@@ -50,7 +55,48 @@ export async function importMarkdownToPage(
   }
 
   // 3. Convert markdown to Notion blocks
-  const newBlocks = markdownToNotionBlocks(markdown, id);
+  const newBlocks = markdownToNotionBlocks(markdown, id, baseDir);
+
+  if (!baseDir) {
+    for (const b of newBlocks) {
+      if (b.imageUpload && !path.isAbsolute(b.imageUpload.localPath)) {
+        throw new Error(
+          `Markdown references a relative local image (${b.imageUpload.localPath}) but no file context is available. Use notion_import_page_from_file or pass an absolute path.`,
+        );
+      }
+    }
+  }
+
+  // 3b. Upload any local images and patch the blocks with attachment URLs.
+  for (const block of newBlocks) {
+    if (!block.imageUpload) continue;
+    const { localPath, name, contentType, bytes } = block.imageUpload;
+    // record.id MUST be the image block's own UUID, not the page id — otherwise
+    // Notion later returns 400 "user doesn't have access" when rendering.
+    const uploadResp = await notionPost(config, 'getUploadFileUrl', {
+      bucket: 'secure',
+      name,
+      contentType,
+      record: { table: 'block', id: block.id, spaceId: config.spaceId },
+    });
+    const url: string = uploadResp.url;
+    const signedPutUrl: string = uploadResp.signedPutUrl;
+
+    const fileBytes = fs.readFileSync(localPath);
+    const putRes = await fetch(signedPutUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: fileBytes,
+    });
+    if (!putRes.ok) {
+      const text = await putRes.text();
+      throw new Error(`S3 upload failed for ${name} (${putRes.status}): ${text.slice(0, 300)}`);
+    }
+
+    block.properties = { source: [[url]], size: [[String(bytes)]] };
+    block.format = { display_source: url, block_width: 900, block_preserve_scale: true };
+    delete block.imageUpload;
+  }
 
   // 4. Create new blocks in a separate transaction
   const createOps: any[] = [];
@@ -132,5 +178,5 @@ export async function importMarkdownFromFile(
   filePath: string,
 ): Promise<string> {
   const md = fs.readFileSync(filePath, 'utf-8');
-  return importMarkdownToPage(config, pageId, md);
+  return importMarkdownToPage(config, pageId, md, path.dirname(filePath));
 }

@@ -1,4 +1,20 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import type { NotionBlock } from '../types.js';
+
+const IMAGE_CONTENT_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+};
+
+function inferImageContentType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  return IMAGE_CONTENT_TYPES[ext] ?? 'application/octet-stream';
+}
 
 export function richText(text: string): any[][] {
   if (!text) return [];
@@ -49,9 +65,10 @@ export function richText(text: string): any[][] {
   return result;
 }
 
-export function markdownToNotionBlocks(markdown: string, parentId: string): NotionBlock[] {
+export function markdownToNotionBlocks(markdown: string, parentId: string, baseDir?: string): NotionBlock[] {
   const lines = markdown.split('\n');
   const blocks: NotionBlock[] = [];
+  const resolveBase = baseDir ?? process.cwd();
   let i = 0;
   let prevId: string | undefined;
 
@@ -69,6 +86,49 @@ export function markdownToNotionBlocks(markdown: string, parentId: string): Noti
     if (line.trim() === '') {
       i++;
       continue;
+    }
+
+    // Standalone image line — must run before rich-text scanner so the image
+    // becomes its own block instead of being swallowed into a paragraph.
+    const imageMatch = line.match(/^!\[([^\]]*)\]\((.+?)\)$/);
+    if (imageMatch) {
+      const url = imageMatch[2];
+      const blockId = crypto.randomUUID();
+      const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(url);
+      const isFileUrl = url.startsWith('file://');
+      const isAttachment = url.startsWith('attachment:');
+      const isHttp = /^https?:\/\//i.test(url);
+
+      if (isHttp || isAttachment) {
+        blocks.push({
+          id: blockId,
+          type: 'image',
+          properties: { source: [[url]] },
+          format: { display_source: url, block_width: 900, block_preserve_scale: true },
+          after: prevId,
+        });
+        prevId = blockId;
+        i++;
+        continue;
+      }
+
+      if (!hasScheme || isFileUrl) {
+        const rawPath = isFileUrl ? url.slice('file://'.length) : url;
+        const localPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(resolveBase, rawPath);
+        const stat = fs.statSync(localPath);
+        const name = path.basename(localPath);
+        const contentType = inferImageContentType(localPath);
+        blocks.push({
+          id: blockId,
+          type: 'image',
+          properties: {},
+          after: prevId,
+          imageUpload: { localPath, name, contentType, bytes: stat.size },
+        });
+        prevId = blockId;
+        i++;
+        continue;
+      }
     }
 
     // Headings

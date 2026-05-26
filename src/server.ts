@@ -15,6 +15,7 @@ import {
 } from './tools/import.js';
 import { createPage, createPageFromFile } from './tools/create-page.js';
 import { listComments, addComment, replyComment } from './tools/comments.js';
+import pkg from '../package.json';
 
 const config = loadConfig();
 
@@ -169,7 +170,7 @@ async function handleMessage(msg: any): Promise<any> {
         capabilities: { tools: {} },
         serverInfo: {
           name: 'notion-mcp',
-          version: '0.2.0',
+          version: pkg.version,
           title: 'Notion MCP Server',
           description: 'Search, export, and import Notion pages as markdown — no workspace admin or OAuth needed',
           websiteUrl: 'https://shck.dev/blog/notion-mcp',

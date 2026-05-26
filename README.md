@@ -22,8 +22,9 @@ Just paste 3 values from your browser and go.
 ## Features
 
 - **Search** — full-text search across your entire workspace
-- **Export** — download any page as clean markdown (headings, lists, code blocks, tables, links)
-- **Import** — write markdown back to Notion pages, from a string or local file
+- **Export** — download any page as clean markdown (headings, lists, to-do, code blocks, tables, links)
+- **Import** — write markdown back to Notion pages (replaces content), from a string or local file
+- **Append** — add markdown to the end of a page without touching existing content
 - **Create** — spin up new child pages, optionally prefilled from a markdown string or file
 - **Comments** — list open discussions, add new comments, reply to threads
 - **Zero setup friction** — uses the same internal API as the Notion web app; if you can see it in your browser, this server can access it
@@ -34,8 +35,10 @@ Just paste 3 values from your browser and go.
 |------|-------------|
 | `notion_search` | Full-text search across all pages in your workspace |
 | `notion_export_page` | Export any Notion page as markdown |
-| `notion_import_page` | Write markdown content to a Notion page (replaces content) |
-| `notion_import_page_from_file` | Write a local `.md` file to a Notion page |
+| `notion_import_page` | Write markdown to a Notion page — **replaces** all existing content |
+| `notion_import_page_from_file` | Write a local `.md` file to a page — **replaces** all content |
+| `notion_append_to_page` | Append markdown to the **end** of a page (non-destructive) |
+| `notion_append_to_page_from_file` | Append a local `.md` file to the end of a page (non-destructive) |
 | `notion_create_page` | Create a new sub-page, optionally prefilled with markdown |
 | `notion_create_page_from_file` | Create a new sub-page from a local `.md` file |
 | `notion_list_comments` | List open discussion threads on a page |
@@ -102,8 +105,8 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, etc.):
 - **Internal API** — undocumented, may break with Notion updates
 - **Token expiry** — `token_v2` expires periodically; re-grab from browser when auth fails
 - **Pages only** — no database queries (search, export, import work on pages)
-- **Replace-only import** — import replaces all page content (no append/merge)
-- **Lossy markdown** — some complex formatting may simplify during conversion
+- **Block granularity** — import replaces all content, append adds to the end (no in-place editing of individual blocks)
+- **Lossy markdown** — some complex formatting may simplify during conversion (e.g. nested lists flatten on import)
 
 ## License
 

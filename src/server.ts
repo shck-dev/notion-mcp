@@ -7,9 +7,15 @@ import { loadConfig } from './notion-client.js';
 import { startStdioTransport } from './transport.js';
 import { searchPages } from './tools/search.js';
 import { exportPageMarkdown } from './tools/export.js';
-import { importMarkdownToPage, importMarkdownFromFile } from './tools/import.js';
+import {
+  importMarkdownToPage,
+  importMarkdownFromFile,
+  appendMarkdownToPage,
+  appendMarkdownFromFile,
+} from './tools/import.js';
 import { createPage, createPageFromFile } from './tools/create-page.js';
 import { listComments, addComment, replyComment } from './tools/comments.js';
+import pkg from '../package.json';
 
 const config = loadConfig();
 
@@ -39,7 +45,7 @@ const TOOLS = [
   },
   {
     name: 'notion_import_page',
-    description: 'Write markdown content to a Notion page. Replaces all existing blocks with new content parsed from the provided markdown string. Supports headings, lists, code blocks, tables, and inline formatting.',
+    description: 'Write markdown content to a Notion page. DESTRUCTIVE: replaces ALL existing blocks on the page with content parsed from the markdown string. To add content without removing what is already there, use notion_append_to_page instead. Supports headings, lists, to-do checkboxes, code blocks, tables, and inline formatting (bold, italic, strikethrough, code, links).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -51,7 +57,31 @@ const TOOLS = [
   },
   {
     name: 'notion_import_page_from_file',
-    description: 'Write a local markdown file to a Notion page. Reads the file and replaces all existing page blocks with the parsed content. Useful for syncing documentation from your local filesystem to Notion.',
+    description: 'Write a local markdown file to a Notion page. DESTRUCTIVE: reads the file and replaces ALL existing page blocks with the parsed content. To add content without removing what is already there, use notion_append_to_page_from_file instead.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        page_id: { type: 'string', description: 'Notion page ID (32-char hex) or full Notion URL' },
+        file_path: { type: 'string', description: 'Absolute path to a local .md file' },
+      },
+      required: ['page_id', 'file_path'],
+    },
+  },
+  {
+    name: 'notion_append_to_page',
+    description: 'Append markdown content to the END of a Notion page, after the existing blocks. Non-destructive — existing content is left untouched. Supports headings, lists, to-do checkboxes, code blocks, tables, and inline formatting (bold, italic, strikethrough, code, links).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        page_id: { type: 'string', description: 'Notion page ID (32-char hex) or full Notion URL' },
+        markdown: { type: 'string', description: 'Markdown content to append to the page' },
+      },
+      required: ['page_id', 'markdown'],
+    },
+  },
+  {
+    name: 'notion_append_to_page_from_file',
+    description: 'Append a local markdown file to the END of a Notion page, after the existing blocks. Non-destructive — existing content is left untouched.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -140,7 +170,7 @@ async function handleMessage(msg: any): Promise<any> {
         capabilities: { tools: {} },
         serverInfo: {
           name: 'notion-mcp',
-          version: '0.2.0',
+          version: pkg.version,
           title: 'Notion MCP Server',
           description: 'Search, export, and import Notion pages as markdown — no workspace admin or OAuth needed',
           websiteUrl: 'https://shck.dev/blog/notion-mcp',
@@ -173,6 +203,12 @@ async function handleMessage(msg: any): Promise<any> {
           break;
         case 'notion_import_page_from_file':
           text = await importMarkdownFromFile(config, args.page_id, args.file_path);
+          break;
+        case 'notion_append_to_page':
+          text = await appendMarkdownToPage(config, args.page_id, args.markdown);
+          break;
+        case 'notion_append_to_page_from_file':
+          text = await appendMarkdownFromFile(config, args.page_id, args.file_path);
           break;
         case 'notion_create_page':
           text = await createPage(config, args.parent_page_id, args.title, args.markdown, args.icon);

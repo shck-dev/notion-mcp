@@ -1,5 +1,5 @@
-import { describe, test, expect } from 'bun:test';
-import { parsePageId } from '../src/notion-client.js';
+import { describe, test, expect, afterEach } from 'bun:test';
+import { parsePageId, notionPost } from '../src/notion-client.js';
 
 describe('parsePageId', () => {
   test('32-char hex → UUID conversion', () => {
@@ -36,5 +36,28 @@ describe('parsePageId', () => {
 
   test('too short hex throws', () => {
     expect(() => parsePageId('30fbd879c5f0')).toThrow('Invalid page ID');
+  });
+});
+
+describe('notionPost auth errors', () => {
+  const realFetch = globalThis.fetch;
+  const cfg = { token: 'x', userId: 'u', spaceId: 's' };
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  test('HTTP 401 throws token_v2 refresh guidance', async () => {
+    globalThis.fetch = (async () => new Response('nope', { status: 401 })) as typeof fetch;
+    await expect(notionPost(cfg, 'syncRecordValues', {})).rejects.toThrow(/token_v2/);
+  });
+
+  test('200 UnauthorizedError envelope throws token_v2 refresh guidance', async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ name: 'UnauthorizedError' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+    await expect(notionPost(cfg, 'syncRecordValues', {})).rejects.toThrow(/token_v2/);
   });
 });

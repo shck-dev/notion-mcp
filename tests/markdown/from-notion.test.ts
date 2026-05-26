@@ -59,6 +59,10 @@ describe('richTextToMarkdown', () => {
   test('undefined input', () => {
     expect(richTextToMarkdown(undefined as any)).toBe('');
   });
+
+  test('strikethrough', () => {
+    expect(richTextToMarkdown([['gone', [['s']]]])).toBe('~~gone~~');
+  });
 });
 
 describe('blocksToMarkdown', () => {

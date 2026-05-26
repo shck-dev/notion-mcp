@@ -9,19 +9,21 @@ export function richTextToMarkdown(segments: RichTextSegment[] | undefined): str
       const decorations = seg[1] as Array<[string, string?]> | undefined;
       if (!decorations || decorations.length === 0) return text;
 
-      let result = text;
       const hasB = decorations.some((d) => d[0] === 'b');
       const hasI = decorations.some((d) => d[0] === 'i');
       const hasC = decorations.some((d) => d[0] === 'c');
+      const hasS = decorations.some((d) => d[0] === 's');
       const link = decorations.find((d) => d[0] === 'a');
 
-      if (link) return `[${text}](${link[1]})`;
-      if (hasC) return `\`${text}\``;
-      if (hasB && hasI) return `***${text}***`;
-      if (hasB) return `**${text}**`;
-      if (hasI) return `*${text}*`;
+      let out = text;
+      if (link) out = `[${text}](${link[1]})`;
+      else if (hasC) out = `\`${text}\``;
+      else if (hasB && hasI) out = `***${text}***`;
+      else if (hasB) out = `**${text}**`;
+      else if (hasI) out = `*${text}*`;
+      if (hasS) out = `~~${out}~~`;
 
-      return result;
+      return out;
     })
     .join('');
 }

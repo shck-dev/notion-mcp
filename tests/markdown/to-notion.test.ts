@@ -46,6 +46,18 @@ describe('richText', () => {
       ['italic', [['i']]],
     ]);
   });
+
+  test('strikethrough', () => {
+    expect(richText('~~gone~~')).toEqual([['gone', [['s']]]]);
+  });
+
+  test('strikethrough mixed with plain', () => {
+    expect(richText('keep ~~drop~~ keep')).toEqual([
+      ['keep '],
+      ['drop', [['s']]],
+      [' keep'],
+    ]);
+  });
 });
 
 describe('markdownToNotionBlocks', () => {
@@ -105,6 +117,28 @@ describe('markdownToNotionBlocks', () => {
     expect(blocks[0].properties.title).toEqual([['item 1']]);
     expect(blocks[1].type).toBe('bulleted_list');
     expect(blocks[1].properties.title).toEqual([['item 2']]);
+  });
+
+  test('to-do checked', () => {
+    const blocks = markdownToNotionBlocks('- [x] done', parentId);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('to_do');
+    expect(blocks[0].properties.title).toEqual([['done']]);
+    expect(blocks[0].properties.checked).toEqual([['Yes']]);
+  });
+
+  test('to-do unchecked', () => {
+    const blocks = markdownToNotionBlocks('- [ ] todo', parentId);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('to_do');
+    expect(blocks[0].properties.title).toEqual([['todo']]);
+    expect(blocks[0].properties.checked).toEqual([['No']]);
+  });
+
+  test('to-do uppercase X counts as checked', () => {
+    const blocks = markdownToNotionBlocks('- [X] done', parentId);
+    expect(blocks[0].type).toBe('to_do');
+    expect(blocks[0].properties.checked).toEqual([['Yes']]);
   });
 
   test('numbered list', () => {

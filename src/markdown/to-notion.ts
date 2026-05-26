@@ -29,6 +29,13 @@ export function richText(text: string): any[][] {
       remaining = remaining.slice(boldMatch[0].length);
       continue;
     }
+    // Strikethrough
+    const strikeMatch = remaining.match(/^~~(.+?)~~/);
+    if (strikeMatch) {
+      result.push([strikeMatch[1], [['s']]]);
+      remaining = remaining.slice(strikeMatch[0].length);
+      continue;
+    }
     // Inline code
     const codeMatch = remaining.match(/^`(.+?)`/);
     if (codeMatch) {
@@ -51,7 +58,7 @@ export function richText(text: string): any[][] {
       continue;
     }
     // Plain text — consume until next special char
-    const plainMatch = remaining.match(/^[^*`\[]+/);
+    const plainMatch = remaining.match(/^[^*`\[~]+/);
     if (plainMatch) {
       result.push([plainMatch[0]]);
       remaining = remaining.slice(plainMatch[0].length);
@@ -228,6 +235,16 @@ export function markdownToNotionBlocks(markdown: string, parentId: string, baseD
         });
         prevId = tableId;
       }
+      continue;
+    }
+
+    // To-do checkbox — must run before the bullet rule, which would otherwise
+    // swallow "[x] text" as a literal bullet.
+    const todoMatch = line.match(/^\s*[-*] \[([ xX])\] (.+)$/);
+    if (todoMatch) {
+      const checked = todoMatch[1] === 'x' || todoMatch[1] === 'X';
+      addBlock('to_do', { title: richText(todoMatch[2]), checked: [[checked ? 'Yes' : 'No']] });
+      i++;
       continue;
     }
 

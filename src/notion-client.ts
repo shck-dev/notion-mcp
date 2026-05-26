@@ -3,6 +3,11 @@ import type { NotionConfig, BlockMap, NotionRawBlock } from './types.js';
 const BASE = 'https://www.notion.so/api/v3';
 const DEBUG = process.env.NOTION_DEBUG === '1' || process.env.NOTION_DEBUG === 'true';
 
+const AUTH_HELP =
+  'Notion authentication failed — your token_v2 session cookie is expired or invalid. ' +
+  'Refresh it: open notion.so → DevTools (F12) → Application → Cookies → copy the token_v2 ' +
+  'value into NOTION_TOKEN. (Notion rotates these session cookies periodically.)';
+
 export function loadConfig(): NotionConfig {
   const token = process.env.NOTION_TOKEN;
   const userId = process.env.NOTION_USER_ID;
@@ -46,6 +51,9 @@ export async function notionPost(config: NotionConfig, endpoint: string, body: u
     process.stderr.write(`[notion-mcp] ${endpoint} ${res.status} ${text.slice(0, 500)}\n`);
   }
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error(`${AUTH_HELP} (raw: ${res.status} ${text.slice(0, 200)})`);
+    }
     throw new Error(`Notion ${endpoint} ${res.status}: ${text.slice(0, 300)}`);
   }
   let json: any;
@@ -55,7 +63,10 @@ export async function notionPost(config: NotionConfig, endpoint: string, body: u
     throw new Error(`Notion ${endpoint} returned non-JSON: ${text.slice(0, 300)}`);
   }
   // Notion sometimes returns 200 with an error envelope
-  if (json && (json.errorId || json.name === 'UnauthorizedError' || json.name === 'ObjectNotFoundError')) {
+  if (json && json.name === 'UnauthorizedError') {
+    throw new Error(`${AUTH_HELP} (raw: ${JSON.stringify(json).slice(0, 200)})`);
+  }
+  if (json && (json.errorId || json.name === 'ObjectNotFoundError')) {
     throw new Error(`Notion ${endpoint} error: ${JSON.stringify(json).slice(0, 300)}`);
   }
   return json;

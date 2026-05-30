@@ -4,7 +4,7 @@ MCP server for Notion using internal API (cookie auth, token_v2). No workspace a
 
 ## Package
 
-- **npm**: `@shck-dev/notion-mcp` (currently 0.4.0)
+- **npm**: `@shck-dev/notion-mcp` (currently 0.5.0)
 - **GitHub**: `shck-dev/notion-mcp`
 - **Runtime**: ships a bundled, node-compatible `dist/server.js` (`#!/usr/bin/env node`), so `npx @shck-dev/notion-mcp` works without Bun. Built with `bun build` (`bun run build`); dev/test still use Bun.
 - **License**: MIT
@@ -22,13 +22,15 @@ src/
 ├── prompts.ts             # notion_setup, notion_search_export
 ├── resources.ts           # notion://guide (static), notion://recent (dynamic)
 ├── transport.ts           # stdio JSON-RPC newline-delimited transport
+├── notion-files.ts        # uploadImageFile(), uploadImagesForBlocks(), buildImagePatchOps(), resolveImages()
 ├── types.ts               # NotionConfig, NotionBlock interfaces
 ├── tools/
 │   ├── init.ts            # parseCurl(), resolveSpaces(), notionInit() — the notion_init tool
 │   ├── search.ts          # notion_search
-│   ├── export.ts          # notion_export_page (empty → note listing child block types)
+│   ├── export.ts          # notion_export_page (resolves images; accepts image_dir for local download)
 │   ├── import.ts          # notion_import_page(_from_file), notion_append_to_page(_from_file), buildCreateOps()
 │   ├── create-page.ts     # notion_create_page, notion_create_page_from_file
+│   ├── images.ts          # notion_add_image (local upload or external URL reference)
 │   └── comments.ts        # notion_list_comments, notion_add_comment (anchor_text), notion_reply_comment
 └── markdown/
     ├── to-notion.ts       # richText() + markdownToNotionBlocks()
@@ -42,7 +44,8 @@ Credentials resolve **env → `~/.notion-mcp/config.json`** (env wins): `NOTION_
 ## Tools
 
 - `notion_search` — full-text search across the workspace.
-- `notion_export_page` — page → markdown (live read via `loadPageChunk`).
+- `notion_export_page` — page → markdown (live read via `loadPageChunk`); resolves notion-hosted images to public CDN URLs by default, or downloads them locally when `image_dir` is given.
+- `notion_add_image` — append a single image to the end of a page. Local file → uploaded to Notion (create→upload→patch); http(s) URL → referenced as an external image.
 - `notion_import_page` / `notion_import_page_from_file` — **replace** a page's blocks with parsed markdown (string or local `.md`). Destructive.
 - `notion_append_to_page` / `notion_append_to_page_from_file` — append parsed markdown to the **end** of a page (string or local `.md`); existing blocks are left intact.
 - `notion_create_page` / `notion_create_page_from_file` — create a sub-page under a parent, optionally populated from markdown (string or local `.md`); supports `icon`.
@@ -84,7 +87,7 @@ For anyone extending `to-notion.ts` / `from-notion.ts`:
 | ` ```lang `               | `code`           |
 | `---`                     | `divider`        |
 | `\| a \| b \|` table      | `table` (+ `table_row` children) |
-| `![](path)`               | `image` (local files auto-uploaded) |
+| `![alt](path)`            | `image` (local files: create block → upload → patch source; export: resolves notion-hosted sources to CDN URL or downloads with `image_dir`; caption mapped to/from alt text) |
 
 Inline decorations: `**bold**` → `b`, `*italic*` → `i`, `~~strike~~` → `s`, `` `code` `` → `c`, `[text](url)` → `a`.
 
@@ -96,7 +99,8 @@ Inline decorations: `**bold**` → `b`, `*italic*` → `i`, `~~strike~~` → `s`
 
 ## Resolved
 
-- Local image upload + archived-page preflight: shipped in 0.2.0 (`src/tools/import.ts`).
+- Archived-page preflight: shipped in 0.2.0 (`src/tools/import.ts`).
 - To-do checkboxes, strikethrough, non-destructive append, and actionable auth-expiry errors: shipped in 0.3.0.
 - Cache-lagged reads: `notion_export_page` and the comments tool both call `loadPageChunk` (live) — there is no `loadCachedPageChunk` usage and no internal verify-after-write logic to fix.
 - 0.4.0: credential-free startup (lazy config), node-compatible `dist/` build (npx works without Bun), interactive cURL-based init (`notion-mcp init` CLI + `notion_init` tool), MCP prompts + resources, and sub-page-link / empty-export notes. LobeHub validation unblocked.
+- 0.5.0: image upload fixed (the 400 was caused by calling `getUploadFileUrl` before the block existed; reordered to create→upload→patch); export now resolves notion-hosted image sources via the `www.notion.so/image` proxy to public `img.notionusercontent.com` CDN URLs (or downloads locally with `image_dir`); `notion_add_image` tool added; caption round-trips as markdown alt text.

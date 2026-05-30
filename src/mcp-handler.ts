@@ -15,6 +15,7 @@ import {
 } from './tools/import.js';
 import { createPage, createPageFromFile } from './tools/create-page.js';
 import { listComments, addComment, replyComment } from './tools/comments.js';
+import { notionInit } from './tools/init.js';
 import pkg from '../package.json';
 
 // Resolve config lazily and memoize it. The credential-free methods (initialize,
@@ -162,6 +163,18 @@ export const TOOLS = [
       required: ['discussion_id', 'text'],
     },
   },
+  {
+    name: 'notion_init',
+    description: 'Set up Notion credentials by pasting a "Copy as cURL" of any notion.so/api/v3 request from your browser DevTools (Network tab → right-click a request → Copy as cURL). Extracts the token/user/workspace and saves them to ~/.notion-mcp/config.json. If you have multiple workspaces, it lists them — call again with space_id. Runs without existing credentials.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        curl: { type: 'string', description: 'The full "Copy as cURL" string from DevTools → Network → a /api/v3 request' },
+        space_id: { type: 'string', description: 'Optional workspace id (when you have more than one)' },
+      },
+      required: ['curl'],
+    },
+  },
 ];
 
 export async function handleMessage(msg: any): Promise<any> {
@@ -196,8 +209,13 @@ export async function handleMessage(msg: any): Promise<any> {
   if (method === 'tools/call') {
     const { name, arguments: args } = params;
     try {
-      const config = getConfig();
       let text: string;
+      // notion_init configures credentials, so it must run before getConfig().
+      if (name === 'notion_init') {
+        text = await notionInit(args.curl, args.space_id);
+        return { jsonrpc: '2.0', id, result: { content: [{ type: 'text', text }] } };
+      }
+      const config = getConfig();
       switch (name) {
         case 'notion_search':
           text = await searchPages(config, args.query, args.limit ?? 10);

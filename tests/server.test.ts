@@ -1,15 +1,22 @@
-import { test, expect, beforeEach } from 'bun:test';
+import { test, expect, beforeEach, afterEach } from 'bun:test';
+import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { handleMessage } from '../src/mcp-handler.js';
 
+// Force the "no credentials" state: point the config store at an empty temp dir (via
+// NOTION_MCP_CONFIG_DIR, read fresh each call) and clear the env vars.
+let n = 0;
 beforeEach(() => {
-  // Isolate HOME so a real ~/.notion-mcp/config.json can't leak into these tests,
-  // and clear env so "no credentials" paths are exercised.
-  process.env.HOME = path.join(os.tmpdir(), 'notion-mcp-nohome-' + process.pid);
+  const dir = path.join(os.tmpdir(), `notion-mcp-nocfg-${process.pid}-${n++}`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  process.env.NOTION_MCP_CONFIG_DIR = dir;
   delete process.env.NOTION_TOKEN;
   delete process.env.NOTION_USER_ID;
   delete process.env.NOTION_SPACE_ID;
+});
+afterEach(() => {
+  delete process.env.NOTION_MCP_CONFIG_DIR;
 });
 
 test('initialize and tools/list answer with no credentials', async () => {

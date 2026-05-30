@@ -17,6 +17,7 @@ import { createPage, createPageFromFile } from './tools/create-page.js';
 import { listComments, addComment, replyComment } from './tools/comments.js';
 import { notionInit } from './tools/init.js';
 import { PROMPTS, getPrompt } from './prompts.js';
+import { RESOURCES, readResource } from './resources.js';
 import pkg from '../package.json';
 
 // Resolve config lazily and memoize it. The credential-free methods (initialize,
@@ -187,7 +188,7 @@ export async function handleMessage(msg: any): Promise<any> {
       id,
       result: {
         protocolVersion: '2025-11-25',
-        capabilities: { tools: {}, prompts: {} },
+        capabilities: { tools: {}, prompts: {}, resources: {} },
         serverInfo: {
           name: 'notion-mcp',
           version: pkg.version,
@@ -271,6 +272,18 @@ export async function handleMessage(msg: any): Promise<any> {
   if (method === 'prompts/get') {
     try {
       return { jsonrpc: '2.0', id, result: getPrompt(params.name, params.arguments ?? {}) };
+    } catch (err: any) {
+      return { jsonrpc: '2.0', id, error: { code: -32602, message: err.message } };
+    }
+  }
+
+  if (method === 'resources/list') {
+    return { jsonrpc: '2.0', id, result: { resources: RESOURCES } };
+  }
+
+  if (method === 'resources/read') {
+    try {
+      return { jsonrpc: '2.0', id, result: await readResource(params.uri, getConfig) };
     } catch (err: any) {
       return { jsonrpc: '2.0', id, error: { code: -32602, message: err.message } };
     }

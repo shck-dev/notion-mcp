@@ -66,3 +66,15 @@ test('prompts/get notion_setup returns guide messages', async () => {
   const res = await handleMessage({ jsonrpc: '2.0', id: 11, method: 'prompts/get', params: { name: 'notion_setup' } });
   expect(res.result.messages[0].content.text).toContain('Notion');
 });
+
+test('resources/list returns resources with no credentials', async () => {
+  const res = await handleMessage({ jsonrpc: '2.0', id: 20, method: 'resources/list' });
+  const uris = res.result.resources.map((r: any) => r.uri);
+  expect(uris).toContain('notion://guide');
+  expect(uris).toContain('notion://recent');
+});
+
+test('resources/read notion://guide works credential-free', async () => {
+  const res = await handleMessage({ jsonrpc: '2.0', id: 21, method: 'resources/read', params: { uri: 'notion://guide' } });
+  expect(res.result.contents[0].text).toContain('Notion');
+});

@@ -5,15 +5,17 @@
   "description": "MCP server for Notion using internal API — search, export, and import pages as markdown. No workspace admin or OAuth needed, just your browser cookie.",
   "type": "module",
   "bin": {
-    "notion-mcp": "src/server.ts"
+    "notion-mcp": "dist/server.js"
   },
   "files": [
-    "src",
+    "dist",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "start": "bun run src/server.ts",
+    "build": "bun build src/server.ts --target node --format esm --outfile dist/server.js && chmod +x dist/server.js",
+    "prepublishOnly": "bun run build",
     "test": "bun test",
     "typecheck": "bunx tsc --noEmit"
   },
@@ -48,7 +50,7 @@
   },
   "license": "MIT",
   "engines": {
-    "bun": ">=1.0.0"
+    "node": ">=18"
   },
   "devDependencies": {
     "@types/bun": "latest",

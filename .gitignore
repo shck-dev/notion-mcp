@@ -6,3 +6,5 @@ node_modules/
 start.sh
 .mcpregistry_*
 package-lock.json
+dist/
+.playwright-mcp/

@@ -143,3 +143,25 @@ describe('resolveImages — signed URL (CDN) mode', () => {
     expect(blockMap.B1.value.properties.source).toEqual([['https://example.com/a.png']]);
   });
 });
+
+describe('resolveImages — download mode', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  test('downloads bytes and rewrites source to a local path', async () => {
+    const dir = path.join(os.tmpdir(), `imgs-${crypto.randomUUID()}`);
+    globalThis.fetch = (async () =>
+      new Response(Buffer.from([8, 8, 8]), { status: 200, headers: { 'content-type': 'image/png' } })) as typeof fetch;
+
+    const blockMap: any = { Bxyz1234abcd: { value: { id: 'Bxyz1234abcd', type: 'image', properties: { source: [['attachment:FID:pic.png']] } } } };
+    const r = await resolveImages({ token: 't', userId: 'u', spaceId: 'SP' }, blockMap, { imageDir: dir });
+
+    expect(r).toEqual({ resolved: 1, failed: 0 });
+    const link = blockMap.Bxyz1234abcd.value.properties.source[0][0];
+    expect(link.startsWith(`${path.basename(dir)}/`)).toBe(true);
+    const onDisk = path.join(dir, path.basename(link));
+    expect(fs.existsSync(onDisk)).toBe(true);
+    expect(fs.readFileSync(onDisk)).toEqual(Buffer.from([8, 8, 8]));
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});

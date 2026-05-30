@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import type { NotionConfig, NotionBlock, BlockMap } from './types.js';
 import { notionPost } from './notion-client.js';
 
@@ -105,13 +106,47 @@ async function resolveToCdnUrl(config: NotionConfig, source: string, blockId: st
   return res.headers.get('location');
 }
 
+async function fetchImageBytes(
+  config: NotionConfig,
+  source: string,
+  blockId: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  const inner = innerS3Url(source, config.spaceId);
+  if (!inner) return null;
+  const res = await fetch(proxyUrl(inner, blockId), {
+    headers: { 'user-agent': BROWSER_UA, cookie: cookieFor(config), accept: 'image/*,*/*' },
+  });
+  if (!res.ok) return null;
+  return { buffer: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get('content-type') ?? 'application/octet-stream' };
+}
+
+const EXT_BY_TYPE: Record<string, string> = {
+  'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif', 'image/webp': '.webp', 'image/svg+xml': '.svg',
+};
+
+function fileNameFor(source: string, blockId: string, contentType: string): string {
+  let base = '';
+  if (source.startsWith('attachment:')) {
+    const rest = source.slice('attachment:'.length);
+    base = rest.slice(rest.indexOf(':') + 1);
+  } else {
+    try { base = decodeURIComponent(new URL(source).pathname.split('/').pop() ?? ''); } catch { base = ''; }
+  }
+  if (!base) base = 'image';
+  if (!path.extname(base) && EXT_BY_TYPE[contentType]) base += EXT_BY_TYPE[contentType];
+  return `${blockId.slice(0, 8)}-${base.replace(/[^A-Za-z0-9._-]/g, '_')}`;
+}
+
 // Rewrite image-block sources in the blockMap so they render in markdown.
-// (Download mode is added in the next task.)
+// With imageDir: download bytes to disk and rewrite to <basename(imageDir)>/<file>.
+// Without imageDir: proxy the 302 to get a public CDN URL.
 export async function resolveImages(
   config: NotionConfig,
   blockMap: BlockMap,
-  _opts: { imageDir?: string } = {},
+  opts: { imageDir?: string } = {},
 ): Promise<{ resolved: number; failed: number }> {
+  const { imageDir } = opts;
+  if (imageDir) fs.mkdirSync(imageDir, { recursive: true });
   let resolved = 0;
   let failed = 0;
   for (const [blockId, entry] of Object.entries(blockMap)) {
@@ -120,10 +155,19 @@ export async function resolveImages(
     if (!src) continue;
     if (/^https?:\/\//i.test(src) && !NOTION_FILE_HOST_RE.test(src)) continue; // external → leave
     try {
-      const cdn = await resolveToCdnUrl(config, src, blockId);
-      if (!cdn) { failed++; continue; }
-      entry.value.properties = { ...entry.value.properties, source: [[cdn]] };
-      resolved++;
+      if (imageDir) {
+        const got = await fetchImageBytes(config, src, blockId);
+        if (!got) { failed++; continue; }
+        const fname = fileNameFor(src, blockId, got.contentType);
+        fs.writeFileSync(path.join(imageDir, fname), got.buffer);
+        entry.value.properties = { ...entry.value.properties, source: [[`${path.basename(imageDir)}/${fname}`]] };
+        resolved++;
+      } else {
+        const cdn = await resolveToCdnUrl(config, src, blockId);
+        if (!cdn) { failed++; continue; }
+        entry.value.properties = { ...entry.value.properties, source: [[cdn]] };
+        resolved++;
+      }
     } catch {
       failed++;
     }

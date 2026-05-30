@@ -7,5 +7,12 @@
  */
 import { handleMessage } from './mcp-handler.js';
 import { startStdioTransport } from './transport.js';
+import { runInit } from './cli-init.js';
+
+// `notion-mcp init` runs the interactive setup wizard instead of the stdio server.
+if (process.argv[2] === 'init') {
+  await runInit();
+  process.exit(0);
+}
 
 startStdioTransport(handleMessage);

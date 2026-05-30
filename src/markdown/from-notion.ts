@@ -118,7 +118,11 @@ export function blocksToMarkdown(blockMap: BlockMap, rootId: string): string {
       }
 
       case 'page':
-        // Skip page block itself, render children below
+        // Root page: skip its own title, render children below.
+        // Child page: render a sub-page link (its inner content isn't loaded with the parent).
+        if (blockId !== rootId) {
+          lines.push(`${indent}- [${title || 'Untitled'}](https://www.notion.so/${blockId.replace(/-/g, '')})`);
+        }
         break;
 
       default:

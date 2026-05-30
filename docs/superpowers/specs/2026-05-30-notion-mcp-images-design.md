@@ -197,15 +197,31 @@ Ordered, isolated commits on a `feat/images` branch:
 
 WS1+WS2 alone restore working uploads; WS3/WS4 add the new surface.
 
-## Open risks / to confirm on sandbox during implementation
+## Verified (sandbox round-trip — all spec unknowns resolved)
 
-- **`getUploadFileUrl` success shape** — POST `fields` vs `signedPutUrl`, and exact `url`/`key`/`fileId`
-  fields (both probes 400'd before the success body; needs a real, pre-created block).
-- **`getSignedFileUrls` request/response shape** — whether it accepts the `attachment:<fileId>:<name>`
-  ref directly or needs the reconstructed S3 URL; the `permissionRecord` requirement.
-- **`size` string format** — UI shows `"447.9 KiB"`; confirm Notion accepts a plain byte count if we
-  don't replicate the exact unit formatting.
-- **`submitTransaction` vs `saveTransactionsFanout`** — our code uses `submitTransaction` (works today);
-  the capture uses `saveTransactionsFanout`. Keep `submitTransaction` unless the patch step rejects it.
+Confirmed live against the sandbox with self-cleaning test blocks:
+
+- **Write transport:** `submitTransaction` returns 200 — keep it (no `saveTransactionsFanout` needed).
+- **`getUploadFileUrl`** body `{ bucket:'secure', name, contentType, record:{table:'block',
+  id:<imageBlockId>, spaceId}, supportExtraHeaders:true, contentLength }` →
+  `{ type:'PUT', url:'attachment:<fileId>:<name>', signedPutUrl, signedGetUrl,
+  putHeaders:[{name,value}], signedToken }`. **`url` is the ready-to-store source** — no key parsing.
+- **Upload = `PUT signedPutUrl`** sending **exactly** the returned `putHeaders` (`Content-Length`,
+  `x-amz-tagging`). Omitting them → `403 SignatureDoesNotMatch`. With them → 200. (So the spec's
+  "branch on POST/PUT" is settled: it's PUT-with-headers.)
+- **`size`** accepts a plain byte-count string (`"70"`) — no `"447.9 KiB"` formatting needed.
+- **Read-back** persists `properties.source = attachment:<fileId>:<name>`, `format.display_source` same.
+- **Viewing/resolution:** `getSignedFileUrls` → `file.notion.so` URLs **always 403** — a dead end.
+  The working path is the **image proxy**:
+  `https://www.notion.so/image/<encodeURIComponent(s3Url)>?table=block&id=<blockId>&cache=v2`
+  (with `token_v2` cookie + a browser User-Agent) → **302** to `https://img.notionusercontent.com/s3/…`,
+  which **serves the bytes and is publicly fetchable with no cookie**. Here
+  `s3Url = https://prod-files-secure.s3.us-west-2.amazonaws.com/<spaceId>/<fileId>/<name>`.
+  - **signed-URL export** = the resolved `img.notionusercontent.com` CDN URL (renders anywhere; time-limited).
+  - **download export** = fetch the proxy (cookie + UA, follow redirects) → bytes. Notion re-encodes,
+    so the downloaded size differs from the source — tests assert `content-type`, not exact bytes.
+
+## Remaining minor decision
+
 - **Downloaded-image link convention** — default `<basename(image_dir)>/<file>` assumes the markdown is
   saved beside `image_dir`; revisit if a different layout is wanted.

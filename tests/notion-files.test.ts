@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { uploadImageFile } from '../src/notion-files.js';
+import { uploadImagesForBlocks, buildImagePatchOps } from '../src/notion-files.js';
 
 describe('uploadImageFile', () => {
   const realFetch = globalThis.fetch;
@@ -69,5 +70,42 @@ describe('uploadImageFile', () => {
       uploadImageFile({ token: 't', userId: 'u', spaceId: 'sp' }, { blockId: 'B', localPath: tmp, name: 'img.png', contentType: 'image/png', bytes: 1 }),
     ).rejects.toThrow('S3 upload failed');
     fs.unlinkSync(tmp);
+  });
+});
+
+describe('uploadImagesForBlocks + buildImagePatchOps', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  test('uploads only imageUpload blocks, patches them in place, builds update ops', async () => {
+    const tmp = path.join(os.tmpdir(), `b-${crypto.randomUUID()}.png`);
+    fs.writeFileSync(tmp, Buffer.from([1, 2, 3]));
+    globalThis.fetch = (async (url: any) => {
+      if (String(url).endsWith('/getUploadFileUrl')) {
+        return new Response(
+          JSON.stringify({ type: 'PUT', url: 'attachment:F9:b.png', signedPutUrl: 'https://s3/put', putHeaders: [] }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response('', { status: 200 });
+    }) as typeof fetch;
+
+    const blocks: any[] = [
+      { id: 'T1', type: 'text', properties: { title: [['hi']] } },
+      { id: 'I1', type: 'image', properties: {}, imageUpload: { localPath: tmp, name: 'b.png', contentType: 'image/png', bytes: 3 } },
+    ];
+    const uploaded = await uploadImagesForBlocks({ token: 't', userId: 'u', spaceId: 'sp' }, blocks);
+    fs.unlinkSync(tmp);
+
+    expect(uploaded.map((b) => b.id)).toEqual(['I1']);
+    expect(blocks[1].imageUpload).toBeUndefined();
+    expect(blocks[1].properties.source).toEqual([['attachment:F9:b.png']]);
+    expect(blocks[1].format.display_source).toBe('attachment:F9:b.png');
+
+    const ops = buildImagePatchOps(uploaded);
+    expect(ops).toHaveLength(1);
+    expect(ops[0]).toMatchObject({ id: 'I1', table: 'block', command: 'update' });
+    expect(ops[0].args.properties.source).toEqual([['attachment:F9:b.png']]);
+    expect(ops[0].args.format.display_source).toBe('attachment:F9:b.png');
   });
 });

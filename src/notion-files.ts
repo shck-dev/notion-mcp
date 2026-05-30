@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import type { NotionConfig } from './types.js';
+import type { NotionConfig, NotionBlock } from './types.js';
 import { notionPost } from './notion-client.js';
 
 // Upload one local image to Notion. The image block MUST already exist — getUploadFileUrl
@@ -32,4 +32,35 @@ export async function uploadImageFile(
   }
   // up.url is already "attachment:<fileId>:<name>" — store it verbatim as the block source.
   return { source: up.url, size: String(bytes) };
+}
+
+// Upload every block carrying an imageUpload, patching it in place with its attachment
+// source + display format, and clearing imageUpload. Returns the patched image blocks.
+export async function uploadImagesForBlocks(
+  config: NotionConfig,
+  blocks: NotionBlock[],
+): Promise<NotionBlock[]> {
+  const uploaded: NotionBlock[] = [];
+  for (const b of blocks) {
+    if (!b.imageUpload) continue;
+    const { localPath, name, contentType, bytes } = b.imageUpload;
+    const { source, size } = await uploadImageFile(config, { blockId: b.id, localPath, name, contentType, bytes });
+    b.properties = { ...b.properties, source: [[source]], size: [[size]] };
+    b.format = { ...(b.format ?? {}), display_source: source, block_width: 900, block_preserve_scale: true };
+    delete b.imageUpload;
+    uploaded.push(b);
+  }
+  return uploaded;
+}
+
+// Build submitTransaction `update` ops that write each already-uploaded image block's
+// source/size/format. Runs as a second transaction, after the create transaction.
+export function buildImagePatchOps(blocks: NotionBlock[]): any[] {
+  return blocks.map((b) => ({
+    id: b.id,
+    table: 'block',
+    path: [],
+    command: 'update',
+    args: { properties: b.properties, ...(b.format ? { format: b.format } : {}) },
+  }));
 }

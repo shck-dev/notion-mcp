@@ -54,3 +54,15 @@ test('tools/call notion_init runs credential-free and saves config', async () =>
   expect(res.result.content[0].text).toContain('Saved Notion credentials');
   expect(fs.existsSync(path.join(dir, 'config.json'))).toBe(true);
 });
+
+test('prompts/list returns prompts with no credentials', async () => {
+  const res = await handleMessage({ jsonrpc: '2.0', id: 10, method: 'prompts/list' });
+  const names = res.result.prompts.map((p: any) => p.name);
+  expect(names).toContain('notion_setup');
+  expect(names).toContain('notion_search_export');
+});
+
+test('prompts/get notion_setup returns guide messages', async () => {
+  const res = await handleMessage({ jsonrpc: '2.0', id: 11, method: 'prompts/get', params: { name: 'notion_setup' } });
+  expect(res.result.messages[0].content.text).toContain('Notion');
+});

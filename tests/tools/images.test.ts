@@ -1,4 +1,5 @@
 import { describe, test, expect, afterEach } from 'bun:test';
+import { TOOLS } from '../../src/mcp-handler.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -67,5 +68,15 @@ describe('addImageToPage', () => {
     expect(uploadCalled).toBe(false);
     expect(ops).toHaveLength(1);
     expect(ops[0].some((o: any) => o.args?.properties?.source?.[0]?.[0] === 'https://example.com/x.png')).toBe(true);
+  });
+});
+
+describe('notion_add_image registration', () => {
+  test('is listed with the expected schema', () => {
+    const tool = TOOLS.find((t) => t.name === 'notion_add_image');
+    expect(tool).toBeDefined();
+    expect(tool!.inputSchema.required).toContain('page_id');
+    expect(tool!.inputSchema.required).toContain('image_path');
+    expect(Object.keys(tool!.inputSchema.properties)).toContain('caption');
   });
 });

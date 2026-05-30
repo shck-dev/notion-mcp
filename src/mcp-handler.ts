@@ -14,6 +14,7 @@ import {
   appendMarkdownFromFile,
 } from './tools/import.js';
 import { createPage, createPageFromFile } from './tools/create-page.js';
+import { addImageToPage } from './tools/images.js';
 import { listComments, addComment, replyComment } from './tools/comments.js';
 import { notionInit } from './tools/init.js';
 import { PROMPTS, getPrompt } from './prompts.js';
@@ -126,6 +127,19 @@ export const TOOLS = [
         icon: { type: 'string', description: 'Optional page icon (emoji like "📄" or URL)' },
       },
       required: ['parent_page_id', 'title', 'file_path'],
+    },
+  },
+  {
+    name: 'notion_add_image',
+    description: 'Add an image to the END of a Notion page. `image_path` is either an absolute path to a local image file (uploaded to Notion) or an http(s) URL (referenced as an external image). Non-destructive — appended after existing blocks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        page_id: { type: 'string', description: 'Notion page ID (32-char hex) or full Notion URL' },
+        image_path: { type: 'string', description: 'Absolute path to a local image file, or an http(s) image URL' },
+        caption: { type: 'string', description: 'Optional caption (also used as markdown alt text on export)' },
+      },
+      required: ['page_id', 'image_path'],
     },
   },
   {
@@ -242,6 +256,9 @@ export async function handleMessage(msg: any): Promise<any> {
           break;
         case 'notion_create_page_from_file':
           text = await createPageFromFile(config, args.parent_page_id, args.title, args.file_path, args.icon);
+          break;
+        case 'notion_add_image':
+          text = await addImageToPage(config, args.page_id, args.image_path, args.caption);
           break;
         case 'notion_list_comments':
           text = await listComments(config, args.page_id, args.include_resolved ?? false);

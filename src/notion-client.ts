@@ -1,4 +1,5 @@
 import type { NotionConfig, BlockMap, NotionRawBlock } from './types.js';
+import { readConfigFile } from './config-store.js';
 
 const BASE = 'https://www.notion.so/api/v3';
 const DEBUG = process.env.NOTION_DEBUG === '1' || process.env.NOTION_DEBUG === 'true';
@@ -9,9 +10,10 @@ const AUTH_HELP =
   'value into NOTION_TOKEN. (Notion rotates these session cookies periodically.)';
 
 export function loadConfig(): NotionConfig {
-  const token = process.env.NOTION_TOKEN;
-  const userId = process.env.NOTION_USER_ID;
-  const spaceId = process.env.NOTION_SPACE_ID;
+  const file = readConfigFile() ?? {};
+  const token = process.env.NOTION_TOKEN ?? file.token;
+  const userId = process.env.NOTION_USER_ID ?? file.userId;
+  const spaceId = process.env.NOTION_SPACE_ID ?? file.spaceId;
 
   const missing: string[] = [];
   if (!token) missing.push('NOTION_TOKEN');
@@ -20,13 +22,11 @@ export function loadConfig(): NotionConfig {
 
   if (missing.length > 0) {
     throw new Error(
-      `Missing required environment variables: ${missing.join(', ')}\n\n` +
-      'Get these from your browser:\n' +
-      '1. Open Notion in Chrome, press F12 → Application → Cookies\n' +
-      '2. NOTION_TOKEN = token_v2 cookie value\n' +
-      '3. Open F12 → Network, do any action, find a POST to /api/v3/*\n' +
-      '4. NOTION_USER_ID = x-notion-active-user-header from request headers\n' +
-      '5. NOTION_SPACE_ID = spaceId from any request body'
+      `Missing Notion credentials: ${missing.join(', ')}.\n\n` +
+      'Easiest fix — run the interactive setup:\n' +
+      '  npx @shck-dev/notion-mcp init\n' +
+      '(paste a "Copy as cURL" from your browser DevTools; it extracts everything)\n\n' +
+      'Or set the env vars manually, or create ~/.notion-mcp/config.json. See the README.'
     );
   }
 

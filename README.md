@@ -27,6 +27,8 @@ Just paste 3 values from your browser and go.
 - **Append** — add markdown to the end of a page without touching existing content
 - **Create** — spin up new child pages, optionally prefilled from a markdown string or file
 - **Comments** — list open discussions, add new comments, reply to threads
+- **One-command setup** — `npx @shck-dev/notion-mcp init`: paste a browser "Copy as cURL" and it extracts + saves your credentials
+- **Prompts & resources** — a `notion_setup` prompt and a `notion://guide` resource for in-client onboarding
 - **Zero setup friction** — uses the same internal API as the Notion web app; if you can see it in your browser, this server can access it
 
 ## Tools
@@ -44,6 +46,7 @@ Just paste 3 values from your browser and go.
 | `notion_list_comments` | List open discussion threads on a page |
 | `notion_add_comment` | Start a new discussion — inline (anchored to text) or block-level |
 | `notion_reply_comment` | Reply to an existing discussion thread |
+| `notion_init` | Paste a browser "Copy as cURL" to extract & save credentials |
 
 ## Why not the official Notion API?
 
@@ -57,6 +60,20 @@ Just paste 3 values from your browser and go.
 **Trade-off**: The internal API is undocumented and may change. Token expires periodically (re-grab from browser).
 
 ## Quick start
+
+### Easiest: interactive setup
+
+```bash
+npx @shck-dev/notion-mcp init
+```
+
+Open Notion in Chrome → DevTools (F12) → **Network** → click any request to `notion.so/api/v3/…` → right-click → **Copy as cURL**, then paste it and press Ctrl-D. Your token, user id, and workspace id are extracted and saved to `~/.notion-mcp/config.json`. Then register the server — no `env` block needed:
+
+```bash
+claude mcp add notion -- npx @shck-dev/notion-mcp
+```
+
+Prefer to set the three values by hand? Steps below.
 
 ### 1. Get credentials from your browser
 
@@ -73,7 +90,7 @@ Just paste 3 values from your browser and go.
 #### Claude Code
 
 ```bash
-claude mcp add notion -- env NOTION_TOKEN=your_token NOTION_USER_ID=your_user_id NOTION_SPACE_ID=your_space_id bunx @shck-dev/notion-mcp
+claude mcp add notion -- env NOTION_TOKEN=your_token NOTION_USER_ID=your_user_id NOTION_SPACE_ID=your_space_id npx @shck-dev/notion-mcp
 ```
 
 #### Claude Desktop / Cursor / any MCP client
@@ -84,7 +101,7 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, etc.):
 {
   "mcpServers": {
     "notion": {
-      "command": "bunx",
+      "command": "npx",
       "args": ["@shck-dev/notion-mcp"],
       "env": {
         "NOTION_TOKEN": "your_token_v2_value",
@@ -98,13 +115,13 @@ Add to your MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, etc.):
 
 ## Requirements
 
-- [Bun](https://bun.sh) runtime — `curl -fsSL https://bun.sh/install | bash`
+- **Node.js ≥ 18** (for `npx`) — or [Bun](https://bun.sh). The published server is compiled to node-compatible JS, so Bun is no longer required to run it.
 
 ## Limitations
 
 - **Internal API** — undocumented, may break with Notion updates
 - **Token expiry** — `token_v2` expires periodically; re-grab from browser when auth fails
-- **Pages only** — no database queries (search, export, import work on pages)
+- **Databases** — database/collection pages don't export rows yet; sub-pages render as links and such pages return an explanatory note instead of empty output
 - **Block granularity** — import replaces all content, append adds to the end (no in-place editing of individual blocks)
 - **Lossy markdown** — some complex formatting may simplify during conversion (e.g. nested lists flatten on import)
 

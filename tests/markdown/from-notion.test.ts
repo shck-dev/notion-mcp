@@ -186,6 +186,22 @@ describe('blocksToMarkdown', () => {
   });
 });
 
+test('image block renders its caption as markdown alt text', () => {
+  const blockMap: any = {
+    root: { value: { id: 'root', type: 'page', content: ['img1'], properties: { title: [['t']] } } },
+    img1: { value: { id: 'img1', type: 'image', properties: { source: [['https://cdn/x.png']], caption: [['A cat']] } } },
+  };
+  expect(blocksToMarkdown(blockMap, 'root')).toContain('![A cat](https://cdn/x.png)');
+});
+
+test('image block with no caption renders empty alt', () => {
+  const blockMap: any = {
+    root: { value: { id: 'root', type: 'page', content: ['i'], properties: { title: [['t']] } } },
+    i: { value: { id: 'i', type: 'image', properties: { source: [['u']] } } },
+  };
+  expect(blocksToMarkdown(blockMap, 'root')).toContain('![](u)');
+});
+
 describe('roundtrip: markdown → notion → markdown', () => {
   function roundtrip(input: string): string {
     const parentId = 'roundtrip-page';

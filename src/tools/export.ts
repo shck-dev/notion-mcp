@@ -1,8 +1,13 @@
 import type { NotionConfig, BlockMap } from '../types.js';
 import { notionPost, parsePageId, normalizeBlockMap } from '../notion-client.js';
 import { blocksToMarkdown } from '../markdown/from-notion.js';
+import { resolveImages } from '../notion-files.js';
 
-export async function exportPageMarkdown(config: NotionConfig, pageId: string): Promise<string> {
+export async function exportPageMarkdown(
+  config: NotionConfig,
+  pageId: string,
+  opts: { imageDir?: string } = {},
+): Promise<string> {
   const id = parsePageId(pageId);
   const allBlocks: BlockMap = {};
   let cursor = { stack: [] as any[] };
@@ -30,6 +35,9 @@ export async function exportPageMarkdown(config: NotionConfig, pageId: string): 
   if (!allBlocks[id]) {
     throw new Error(`Page ${id} not found in response (check credentials or page access)`);
   }
+
+  // Rewrite image sources to viewable urls (CDN link) or local files (when imageDir is set).
+  await resolveImages(config, allBlocks, { imageDir: opts.imageDir });
 
   const md = blocksToMarkdown(allBlocks, id);
   if (md.trim()) return md;

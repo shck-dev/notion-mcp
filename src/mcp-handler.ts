@@ -44,11 +44,12 @@ export const TOOLS = [
   },
   {
     name: 'notion_export_page',
-    description: 'Export a Notion page as clean markdown. Converts headings, lists, code blocks, tables, bold/italic, links, and nested content into standard markdown format.',
+    description: 'Export a Notion page as clean markdown. Converts headings, lists, code blocks, tables, bold/italic, links, images, and nested content into standard markdown. Image links resolve to viewable URLs; pass image_dir to download images locally and link to the files instead.',
     inputSchema: {
       type: 'object',
       properties: {
         page_id: { type: 'string', description: 'Notion page ID (32-char hex) or full Notion URL' },
+        image_dir: { type: 'string', description: 'Optional absolute directory: download images here and link to the local files (markdown should be saved beside this folder). Without it, image links are public CDN URLs.' },
       },
       required: ['page_id'],
     },
@@ -237,7 +238,7 @@ export async function handleMessage(msg: any): Promise<any> {
           text = await searchPages(config, args.query, args.limit ?? 10);
           break;
         case 'notion_export_page':
-          text = await exportPageMarkdown(config, args.page_id);
+          text = await exportPageMarkdown(config, args.page_id, { imageDir: args.image_dir });
           break;
         case 'notion_import_page':
           text = await importMarkdownToPage(config, args.page_id, args.markdown);

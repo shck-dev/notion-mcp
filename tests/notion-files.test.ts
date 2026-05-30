@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { uploadImageFile } from '../src/notion-files.js';
 import { uploadImagesForBlocks, buildImagePatchOps } from '../src/notion-files.js';
+import { resolveImages } from '../src/notion-files.js';
 
 describe('uploadImageFile', () => {
   const realFetch = globalThis.fetch;
@@ -107,5 +108,38 @@ describe('uploadImagesForBlocks + buildImagePatchOps', () => {
     expect(ops[0]).toMatchObject({ id: 'I1', table: 'block', command: 'update' });
     expect(ops[0].args.properties.source).toEqual([['attachment:F9:b.png']]);
     expect(ops[0].args.format.display_source).toBe('attachment:F9:b.png');
+  });
+});
+
+describe('resolveImages — signed URL (CDN) mode', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  test('rewrites an attachment source to the CDN url from the proxy 302', async () => {
+    let requested = '';
+    globalThis.fetch = (async (url: any) => {
+      requested = String(url);
+      return new Response(null, { status: 302, headers: { location: 'https://img.notionusercontent.com/s3/abc?sig=1' } });
+    }) as typeof fetch;
+
+    const blockMap: any = { B1: { value: { id: 'B1', type: 'image', properties: { source: [['attachment:FID:p.png']] } } } };
+    const r = await resolveImages({ token: 't', userId: 'u', spaceId: 'SP' }, blockMap);
+
+    expect(r).toEqual({ resolved: 1, failed: 0 });
+    expect(blockMap.B1.value.properties.source).toEqual([['https://img.notionusercontent.com/s3/abc?sig=1']]);
+    expect(requested).toContain('https://www.notion.so/image/');
+    expect(requested).toContain('table=block&id=B1');
+  });
+
+  test('leaves external (non-notion) image sources untouched', async () => {
+    let called = false;
+    globalThis.fetch = (async () => { called = true; return new Response(null, { status: 302, headers: { location: 'x' } }); }) as typeof fetch;
+
+    const blockMap: any = { B1: { value: { id: 'B1', type: 'image', properties: { source: [['https://example.com/a.png']] } } } };
+    const r = await resolveImages({ token: 't', userId: 'u', spaceId: 'SP' }, blockMap);
+
+    expect(called).toBe(false);
+    expect(r).toEqual({ resolved: 0, failed: 0 });
+    expect(blockMap.B1.value.properties.source).toEqual([['https://example.com/a.png']]);
   });
 });

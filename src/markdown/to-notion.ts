@@ -11,7 +11,7 @@ const IMAGE_CONTENT_TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml',
 };
 
-function inferImageContentType(filePath: string): string {
+export function inferImageContentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   return IMAGE_CONTENT_TYPES[ext] ?? 'application/octet-stream';
 }

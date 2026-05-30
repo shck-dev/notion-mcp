@@ -3,11 +3,12 @@ import * as path from 'path';
 import type { NotionConfig, NotionRawBlock, NotionBlock } from '../types.js';
 import { notionPost, parsePageId, unwrapRecord } from '../notion-client.js';
 import { markdownToNotionBlocks } from '../markdown/to-notion.js';
+import { uploadImagesForBlocks, buildImagePatchOps } from '../notion-files.js';
 
 // Load a page block via syncRecordValues (non-cached, reliable) and guard
 // against not-found / archived pages — writes to archived pages succeed but
 // are silently invisible until the page is restored.
-async function loadAlivePageBlock(config: NotionConfig, id: string): Promise<NotionRawBlock> {
+export async function loadAlivePageBlock(config: NotionConfig, id: string): Promise<NotionRawBlock> {
   const syncData = await notionPost(config, 'syncRecordValues', {
     requests: [{ pointer: { table: 'block', id }, version: -1 }],
   });
@@ -30,39 +31,6 @@ function validateImageRefs(blocks: NotionBlock[], baseDir?: string): void {
         `Markdown references a relative local image (${b.imageUpload.localPath}) but no file context is available. Use the *_from_file variant or pass an absolute path.`,
       );
     }
-  }
-}
-
-// Upload any local images and patch the blocks in place with attachment URLs.
-async function uploadLocalImages(config: NotionConfig, blocks: NotionBlock[]): Promise<void> {
-  for (const block of blocks) {
-    if (!block.imageUpload) continue;
-    const { localPath, name, contentType, bytes } = block.imageUpload;
-    // record.id MUST be the image block's own UUID, not the page id — otherwise
-    // Notion later returns 400 "user doesn't have access" when rendering.
-    const uploadResp = await notionPost(config, 'getUploadFileUrl', {
-      bucket: 'secure',
-      name,
-      contentType,
-      record: { table: 'block', id: block.id, spaceId: config.spaceId },
-    });
-    const url: string = uploadResp.url;
-    const signedPutUrl: string = uploadResp.signedPutUrl;
-
-    const fileBytes = fs.readFileSync(localPath);
-    const putRes = await fetch(signedPutUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': contentType },
-      body: fileBytes,
-    });
-    if (!putRes.ok) {
-      const text = await putRes.text();
-      throw new Error(`S3 upload failed for ${name} (${putRes.status}): ${text.slice(0, 300)}`);
-    }
-
-    block.properties = { source: [[url]], size: [[String(bytes)]] };
-    block.format = { display_source: url, block_width: 900, block_preserve_scale: true };
-    delete block.imageUpload;
   }
 }
 
@@ -130,7 +98,7 @@ export function buildCreateOps(parentId: string, blocks: NotionBlock[], spaceId:
   return createOps;
 }
 
-async function submitOps(config: NotionConfig, operations: any[]): Promise<void> {
+export async function submitOps(config: NotionConfig, operations: any[]): Promise<void> {
   await notionPost(config, 'submitTransaction', {
     requestId: crypto.randomUUID(),
     transactions: [{ id: crypto.randomUUID(), spaceId: config.spaceId, operations }],
@@ -160,8 +128,11 @@ export async function importMarkdownToPage(
 
   const newBlocks = markdownToNotionBlocks(markdown, id, baseDir);
   validateImageRefs(newBlocks, baseDir);
-  await uploadLocalImages(config, newBlocks);
+  // Create blocks first (image blocks are created empty). getUploadFileUrl requires the
+  // block to already exist, so upload + patch the source in a second pass.
   await submitOps(config, buildCreateOps(id, newBlocks, config.spaceId));
+  const uploaded = await uploadImagesForBlocks(config, newBlocks);
+  if (uploaded.length > 0) await submitOps(config, buildImagePatchOps(uploaded));
 
   return `Updated page with ${newBlocks.length} blocks. Removed ${existingChildren.length} old blocks.`;
 }
@@ -187,14 +158,13 @@ export async function appendMarkdownToPage(
 
   const newBlocks = markdownToNotionBlocks(markdown, id, baseDir);
   validateImageRefs(newBlocks, baseDir);
-  await uploadLocalImages(config, newBlocks);
 
-  // Position the first new block after the last existing child so content is
-  // appended, not prepended — existing blocks are never touched.
   if (existingChildren.length > 0 && newBlocks.length > 0) {
     newBlocks[0].after = existingChildren[existingChildren.length - 1];
   }
   await submitOps(config, buildCreateOps(id, newBlocks, config.spaceId));
+  const uploaded = await uploadImagesForBlocks(config, newBlocks);
+  if (uploaded.length > 0) await submitOps(config, buildImagePatchOps(uploaded));
 
   return `Appended ${newBlocks.length} blocks after ${existingChildren.length} existing blocks.`;
 }

@@ -209,6 +209,37 @@ describe('markdownToNotionBlocks', () => {
     expect(blocks[0].format?.display_source).toBe('https://example.com/x.png');
   });
 
+  test('http image with alt text sets properties.caption', () => {
+    const blocks = markdownToNotionBlocks('![A cat](https://x.png)', parentId);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('image');
+    expect(blocks[0].properties.source).toEqual([['https://x.png']]);
+    expect(blocks[0].properties.caption).toEqual(richText('A cat'));
+  });
+
+  test('http image with empty alt has no caption key', () => {
+    const blocks = markdownToNotionBlocks('![](https://x.png)', parentId);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('image');
+    expect(blocks[0].properties.source).toEqual([['https://x.png']]);
+    expect(blocks[0].properties).not.toHaveProperty('caption');
+  });
+
+  test('local image with alt text sets properties.caption', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'notion-mcp-cap-'));
+    const imgPath = path.join(tmpDir, 'pic.png');
+    const fakeBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    fs.writeFileSync(imgPath, fakeBytes);
+
+    const blocks = markdownToNotionBlocks(`![My pic](${imgPath})`, parentId);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe('image');
+    expect(blocks[0].imageUpload).toBeDefined();
+    expect(blocks[0].properties.caption).toEqual([['My pic']]);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   test('table becomes native Notion table with table_row children', () => {
     const md = '| A | B |\n| --- | --- |\n| 1 | 2 |';
     const blocks = markdownToNotionBlocks(md, parentId);

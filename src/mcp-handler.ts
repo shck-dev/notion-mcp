@@ -14,6 +14,7 @@ import {
   appendMarkdownFromFile,
 } from './tools/import.js';
 import { createPage, createPageFromFile } from './tools/create-page.js';
+import { addImageToPage } from './tools/images.js';
 import { listComments, addComment, replyComment } from './tools/comments.js';
 import { notionInit } from './tools/init.js';
 import { PROMPTS, getPrompt } from './prompts.js';
@@ -43,11 +44,12 @@ export const TOOLS = [
   },
   {
     name: 'notion_export_page',
-    description: 'Export a Notion page as clean markdown. Converts headings, lists, code blocks, tables, bold/italic, links, and nested content into standard markdown format.',
+    description: 'Export a Notion page as clean markdown. Converts headings, lists, code blocks, tables, bold/italic, links, images, and nested content into standard markdown. Image links resolve to viewable URLs; pass image_dir to download images locally and link to the files instead.',
     inputSchema: {
       type: 'object',
       properties: {
         page_id: { type: 'string', description: 'Notion page ID (32-char hex) or full Notion URL' },
+        image_dir: { type: 'string', description: 'Optional absolute directory: download images here and link to the local files (markdown should be saved beside this folder). Without it, image links are public CDN URLs.' },
       },
       required: ['page_id'],
     },
@@ -126,6 +128,19 @@ export const TOOLS = [
         icon: { type: 'string', description: 'Optional page icon (emoji like "📄" or URL)' },
       },
       required: ['parent_page_id', 'title', 'file_path'],
+    },
+  },
+  {
+    name: 'notion_add_image',
+    description: 'Add an image to the END of a Notion page. `image_path` is either an absolute path to a local image file (uploaded to Notion) or an http(s) URL (referenced as an external image). Non-destructive — appended after existing blocks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        page_id: { type: 'string', description: 'Notion page ID (32-char hex) or full Notion URL' },
+        image_path: { type: 'string', description: 'Absolute path to a local image file, or an http(s) image URL' },
+        caption: { type: 'string', description: 'Optional caption (also used as markdown alt text on export)' },
+      },
+      required: ['page_id', 'image_path'],
     },
   },
   {
@@ -223,7 +238,7 @@ export async function handleMessage(msg: any): Promise<any> {
           text = await searchPages(config, args.query, args.limit ?? 10);
           break;
         case 'notion_export_page':
-          text = await exportPageMarkdown(config, args.page_id);
+          text = await exportPageMarkdown(config, args.page_id, { imageDir: args.image_dir });
           break;
         case 'notion_import_page':
           text = await importMarkdownToPage(config, args.page_id, args.markdown);
@@ -242,6 +257,9 @@ export async function handleMessage(msg: any): Promise<any> {
           break;
         case 'notion_create_page_from_file':
           text = await createPageFromFile(config, args.parent_page_id, args.title, args.file_path, args.icon);
+          break;
+        case 'notion_add_image':
+          text = await addImageToPage(config, args.page_id, args.image_path, args.caption);
           break;
         case 'notion_list_comments':
           text = await listComments(config, args.page_id, args.include_resolved ?? false);

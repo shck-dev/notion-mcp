@@ -11,7 +11,7 @@ const IMAGE_CONTENT_TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml',
 };
 
-function inferImageContentType(filePath: string): string {
+export function inferImageContentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   return IMAGE_CONTENT_TYPES[ext] ?? 'application/octet-stream';
 }
@@ -99,6 +99,7 @@ export function markdownToNotionBlocks(markdown: string, parentId: string, baseD
     // becomes its own block instead of being swallowed into a paragraph.
     const imageMatch = line.match(/^!\[([^\]]*)\]\((.+?)\)$/);
     if (imageMatch) {
+      const alt = imageMatch[1];
       const url = imageMatch[2];
       const blockId = crypto.randomUUID();
       const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(url);
@@ -110,7 +111,7 @@ export function markdownToNotionBlocks(markdown: string, parentId: string, baseD
         blocks.push({
           id: blockId,
           type: 'image',
-          properties: { source: [[url]] },
+          properties: { source: [[url]], ...(alt ? { caption: richText(alt) } : {}) },
           format: { display_source: url, block_width: 900, block_preserve_scale: true },
           after: prevId,
         });
@@ -128,7 +129,7 @@ export function markdownToNotionBlocks(markdown: string, parentId: string, baseD
         blocks.push({
           id: blockId,
           type: 'image',
-          properties: {},
+          properties: alt ? { caption: richText(alt) } : {},
           after: prevId,
           imageUpload: { localPath, name, contentType, bytes: stat.size },
         });

@@ -95,7 +95,8 @@ export function blocksToMarkdown(blockMap: BlockMap, rootId: string): string {
 
       case 'image': {
         const src = block.properties?.source?.[0]?.[0] ?? '';
-        lines.push(`![](${src})`);
+        const alt = richTextToMarkdown(block.properties?.caption as RichTextSegment[] | undefined);
+        lines.push(`![${alt}](${src})`);
         lines.push('');
         break;
       }

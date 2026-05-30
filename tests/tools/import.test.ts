@@ -1,4 +1,7 @@
 import { describe, test, expect, afterEach } from 'bun:test';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { buildCreateOps, appendMarkdownToPage } from '../../src/tools/import.js';
 import type { NotionBlock } from '../../src/types.js';
 
@@ -96,5 +99,55 @@ describe('appendMarkdownToPage', () => {
     // First new block is positioned after the last existing child.
     const firstListAfter = submittedOps!.find((o) => o.command === 'listAfter');
     expect(firstListAfter.args.after).toBe('child-b');
+  });
+});
+
+describe('image write ordering (regression: upload must follow create)', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  test('getUploadFileUrl is called AFTER the create transaction; source is patched', async () => {
+    const tmp = path.join(os.tmpdir(), `imp-${crypto.randomUUID()}.png`);
+    fs.writeFileSync(tmp, Buffer.from([1, 2, 3, 4]));
+    const uuid = '30fbd879-c5f0-80f8-a88a-c150e349d076';
+    const calls: string[] = [];
+    let patchOps: any[] | null = null;
+
+    globalThis.fetch = (async (url: any, init: any) => {
+      const u = String(url);
+      if (u.endsWith('/put')) { calls.push('S3PUT'); return new Response('', { status: 200 }); }
+      const endpoint = u.split('/').pop()!;
+      calls.push(endpoint);
+      const body = init?.body ? JSON.parse(init.body) : {};
+      if (endpoint === 'syncRecordValues') {
+        return new Response(
+          JSON.stringify({ recordMap: { block: { [uuid]: { value: { value: { id: uuid, type: 'page', alive: true, content: [] } } } } } }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (endpoint === 'getUploadFileUrl') {
+        return new Response(
+          JSON.stringify({ type: 'PUT', url: 'attachment:FID:imp.png', signedPutUrl: 'https://s3.example/put', putHeaders: [] }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (endpoint === 'submitTransaction') {
+        const ops = body.transactions[0].operations;
+        if (ops.some((o: any) => o.command === 'update' && o.args?.properties?.source)) patchOps = ops;
+      }
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+
+    await appendMarkdownToPage({ token: 't', userId: 'u', spaceId: 's' }, uuid, `![](${tmp})`);
+    fs.unlinkSync(tmp);
+
+    const firstCreate = calls.indexOf('submitTransaction');
+    const upload = calls.indexOf('getUploadFileUrl');
+    expect(firstCreate).toBeGreaterThanOrEqual(0);
+    expect(upload).toBeGreaterThan(firstCreate); // the fix: upload AFTER create
+    expect(calls.filter((c) => c === 'submitTransaction')).toHaveLength(2); // create + patch
+    expect(calls).toContain('S3PUT');
+    expect(patchOps).not.toBeNull();
+    expect(patchOps!.some((o: any) => o.args.properties.source[0][0] === 'attachment:FID:imp.png')).toBe(true);
   });
 });

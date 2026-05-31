@@ -24,6 +24,15 @@ jobs:
       - name: Run tests
         run: bun test
 
+      # Drive the published version from the git tag so package.json, the
+      # bundled dist/ (version is inlined by prepublishOnly's build), and
+      # server.json can never drift from each other or from the tag.
+      - name: Sync version from tag
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          jq --arg v "$VERSION" '.version = $v' package.json > package.tmp && mv package.tmp package.json
+          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json
+
       - name: Set up Node.js (for npm publish)
         uses: actions/setup-node@v5
         with:
@@ -42,11 +51,6 @@ jobs:
       - name: Install mcp-publisher
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
-
-      - name: Update version in server.json
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp && mv server.tmp server.json
 
       - name: Authenticate to MCP Registry
         run: ./mcp-publisher login github-oidc

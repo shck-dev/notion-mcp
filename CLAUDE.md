@@ -4,7 +4,7 @@ MCP server for Notion using internal API (cookie auth, token_v2). No workspace a
 
 ## Package
 
-- **npm**: `@shck-dev/notion-mcp` (currently 0.5.0)
+- **npm**: `@shck-dev/notion-mcp` (currently 0.5.1)
 - **GitHub**: `shck-dev/notion-mcp`
 - **Runtime**: ships a bundled, node-compatible `dist/server.js` (`#!/usr/bin/env node`), so `npx @shck-dev/notion-mcp` works without Bun. Built with `bun build` (`bun run build`); dev/test still use Bun.
 - **License**: MIT

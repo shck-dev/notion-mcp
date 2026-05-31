@@ -30,10 +30,14 @@ jobs:
           node-version: "lts/*"
           registry-url: "https://registry.npmjs.org"
 
+      # Trusted publishing (OIDC) requires npm >= 11.5.1; lts/* ships npm 10.x.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
+      # No NPM_TOKEN: npm auto-detects the GitHub OIDC environment (needs the
+      # id-token: write permission above) and publishes with provenance.
       - name: Publish to npm
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Install mcp-publisher
         run: |

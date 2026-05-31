@@ -1,6 +1,6 @@
 <div align="center">
 
-[![MCP Badge](https://lobehub.com/badge/mcp/shck-dev-notion-mcp)](https://lobehub.com/mcp/shck-dev-notion-mcp)
+[![MCP Badge](https://lobehub.com/badge/mcp/shck-dev-notion-mcp?style=plastic)](https://lobehub.com/mcp/shck-dev-notion-mcp)
 
 # @shck-dev/notion-mcp
 

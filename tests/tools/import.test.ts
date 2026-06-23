@@ -80,6 +80,9 @@ describe('appendMarkdownToPage', () => {
         );
       }
       if (endpoint === 'submitTransaction') {
+        throw new Error('regression: submitTransaction was removed by Notion and must not be called');
+      }
+      if (endpoint === 'saveTransactionsFanout') {
         submittedOps = body.transactions[0].operations;
       }
       return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
@@ -93,6 +96,8 @@ describe('appendMarkdownToPage', () => {
 
     expect(result).toContain('Appended');
     expect(submittedOps).not.toBeNull();
+    // Ops reach the wire in the saveTransactionsFanout pointer shape.
+    expect(submittedOps!.every((o) => o.pointer && o.pointer.spaceId === 's')).toBe(true);
     // Must NOT wipe existing content.
     expect(submittedOps!.some((o) => o.command === 'listRemove')).toBe(false);
     expect(submittedOps!.some((o) => o.args && o.args.alive === false)).toBe(false);
@@ -131,7 +136,7 @@ describe('image write ordering (regression: upload must follow create)', () => {
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
       }
-      if (endpoint === 'submitTransaction') {
+      if (endpoint === 'saveTransactionsFanout') {
         const ops = body.transactions[0].operations;
         if (ops.some((o: any) => o.command === 'update' && o.args?.properties?.source)) patchOps = ops;
       }
@@ -141,11 +146,12 @@ describe('image write ordering (regression: upload must follow create)', () => {
     await appendMarkdownToPage({ token: 't', userId: 'u', spaceId: 's' }, uuid, `![](${tmp})`);
     fs.unlinkSync(tmp);
 
-    const firstCreate = calls.indexOf('submitTransaction');
+    expect(calls).not.toContain('submitTransaction'); // removed endpoint must never be used
+    const firstCreate = calls.indexOf('saveTransactionsFanout');
     const upload = calls.indexOf('getUploadFileUrl');
     expect(firstCreate).toBeGreaterThanOrEqual(0);
     expect(upload).toBeGreaterThan(firstCreate); // the fix: upload AFTER create
-    expect(calls.filter((c) => c === 'submitTransaction')).toHaveLength(2); // create + patch
+    expect(calls.filter((c) => c === 'saveTransactionsFanout')).toHaveLength(2); // create + patch
     expect(calls).toContain('S3PUT');
     expect(patchOps).not.toBeNull();
     expect(patchOps!.some((o: any) => o.args.properties.source[0][0] === 'attachment:FID:imp.png')).toBe(true);

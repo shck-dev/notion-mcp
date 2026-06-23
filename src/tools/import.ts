@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { NotionConfig, NotionRawBlock, NotionBlock } from '../types.js';
-import { notionPost, parsePageId, unwrapRecord } from '../notion-client.js';
+import { notionPost, saveTransactions, parsePageId, unwrapRecord } from '../notion-client.js';
 import { markdownToNotionBlocks } from '../markdown/to-notion.js';
 import { uploadImagesForBlocks, buildImagePatchOps } from '../notion-files.js';
 
@@ -34,7 +34,7 @@ function validateImageRefs(blocks: NotionBlock[], baseDir?: string): void {
   }
 }
 
-// Build the submitTransaction operations that create `blocks` under `parentId`.
+// Build the transaction operations that create `blocks` under `parentId`.
 // Pure (no network) — shared by import (replace) and append. Handles one level
 // of children (e.g. table_row blocks inside a table).
 export function buildCreateOps(parentId: string, blocks: NotionBlock[], spaceId: string): any[] {
@@ -99,10 +99,7 @@ export function buildCreateOps(parentId: string, blocks: NotionBlock[], spaceId:
 }
 
 export async function submitOps(config: NotionConfig, operations: any[]): Promise<void> {
-  await notionPost(config, 'submitTransaction', {
-    requestId: crypto.randomUUID(),
-    transactions: [{ id: crypto.randomUUID(), spaceId: config.spaceId, operations }],
-  });
+  await saveTransactions(config, operations);
 }
 
 export async function importMarkdownToPage(

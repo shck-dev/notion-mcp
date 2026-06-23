@@ -33,17 +33,32 @@ export function loadConfig(): NotionConfig {
   return { token: token!, userId: userId!, spaceId: spaceId! };
 }
 
+// Thrown for non-2xx HTTP responses so callers can branch on the status code
+// (e.g. fall back / give actionable guidance when a route is removed → 404).
+export class NotionHttpError extends Error {
+  constructor(message: string, public readonly status: number, public readonly endpoint: string) {
+    super(message);
+    this.name = 'NotionHttpError';
+  }
+}
+
 export async function notionPost(config: NotionConfig, endpoint: string, body: unknown): Promise<any> {
   if (DEBUG) {
     process.stderr.write(`[notion-mcp] POST ${endpoint} ${JSON.stringify(body).slice(0, 500)}\n`);
   }
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'x-notion-active-user-header': config.userId,
+    cookie: `token_v2=${config.token}; notion_user_id=${config.userId}`,
+  };
+  // The space-routed write endpoint (saveTransactionsFanout) expects this header;
+  // it's harmless on reads. Omit it when spaceId is unknown (e.g. during init,
+  // where loadUserContent runs before a workspace is chosen) to avoid a blank header.
+  if (config.spaceId) headers['x-notion-space-id'] = config.spaceId;
+
   const res = await fetch(`${BASE}/${endpoint}`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-notion-active-user-header': config.userId,
-      cookie: `token_v2=${config.token}; notion_user_id=${config.userId}`,
-    },
+    headers,
     body: JSON.stringify(body),
   });
   const text = await res.text();
@@ -52,9 +67,9 @@ export async function notionPost(config: NotionConfig, endpoint: string, body: u
   }
   if (!res.ok) {
     if (res.status === 401) {
-      throw new Error(`${AUTH_HELP} (raw: ${res.status} ${text.slice(0, 200)})`);
+      throw new NotionHttpError(`${AUTH_HELP} (raw: ${res.status} ${text.slice(0, 200)})`, 401, endpoint);
     }
-    throw new Error(`Notion ${endpoint} ${res.status}: ${text.slice(0, 300)}`);
+    throw new NotionHttpError(`Notion ${endpoint} ${res.status}: ${text.slice(0, 300)}`, res.status, endpoint);
   }
   let json: any;
   try {
@@ -70,6 +85,49 @@ export async function notionPost(config: NotionConfig, endpoint: string, body: u
     throw new Error(`Notion ${endpoint} error: ${JSON.stringify(json).slice(0, 300)}`);
   }
   return json;
+}
+
+// A write operation in the simple legacy shape every op-builder in this repo emits.
+export interface TransactionOp {
+  id: string;
+  table: string;
+  path: (string | number)[];
+  command: string;
+  args: unknown;
+}
+
+// Notion removed the legacy `submitTransaction` route (it now 404s server-side).
+// The web client writes through `saveTransactionsFanout`, which expects each op to
+// carry a `pointer { table, id, spaceId }` instead of a top-level id/table. We do
+// that translation here, in one place, so a future endpoint/shape change is a
+// single edit and every op-builder can keep producing the simpler legacy shape.
+const TRANSACTION_ENDPOINT = 'saveTransactionsFanout';
+
+export async function saveTransactions(config: NotionConfig, ops: TransactionOp[]): Promise<any> {
+  const operations = ops.map(({ id, table, path, command, args }) => ({
+    pointer: { table, id, spaceId: config.spaceId },
+    path,
+    command,
+    args,
+  }));
+  const body = {
+    requestId: crypto.randomUUID(),
+    transactions: [
+      { id: crypto.randomUUID(), spaceId: config.spaceId, debug: { userAction: 'notion-mcp' }, operations },
+    ],
+  };
+  try {
+    return await notionPost(config, TRANSACTION_ENDPOINT, body);
+  } catch (err) {
+    if (err instanceof NotionHttpError && err.status === 404) {
+      throw new Error(
+        `Notion rejected the write — the transaction endpoint "${TRANSACTION_ENDPOINT}" returned 404. ` +
+        'Notion may have changed its internal write API again; the server needs updating. ' +
+        `(raw: ${err.message})`,
+      );
+    }
+    throw err;
+  }
 }
 
 export function parsePageId(input: string): string {

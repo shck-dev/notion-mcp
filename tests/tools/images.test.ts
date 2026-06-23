@@ -38,7 +38,8 @@ describe('addImageToPage', () => {
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
       }
-      if (endpoint === 'submitTransaction') ops.push(body.transactions[0].operations);
+      if (endpoint === 'submitTransaction') throw new Error('regression: submitTransaction must not be used');
+      if (endpoint === 'saveTransactionsFanout') ops.push(body.transactions[0].operations);
       return null;
     });
 
@@ -58,7 +59,8 @@ describe('addImageToPage', () => {
     const ops: any[][] = [];
     mockPage((endpoint, body) => {
       if (endpoint === 'getUploadFileUrl') uploadCalled = true;
-      if (endpoint === 'submitTransaction') ops.push(body.transactions[0].operations);
+      if (endpoint === 'submitTransaction') throw new Error('regression: submitTransaction must not be used');
+      if (endpoint === 'saveTransactionsFanout') ops.push(body.transactions[0].operations);
       return null;
     });
 

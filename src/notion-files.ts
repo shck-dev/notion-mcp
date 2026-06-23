@@ -54,7 +54,7 @@ export async function uploadImagesForBlocks(
   return uploaded;
 }
 
-// Build submitTransaction `update` ops that write each already-uploaded image block's
+// Build `update` ops that write each already-uploaded image block's
 // source/size/format. Runs as a second transaction, after the create transaction.
 export function buildImagePatchOps(blocks: NotionBlock[]): any[] {
   return blocks.map((b) => ({

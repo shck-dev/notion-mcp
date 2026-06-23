@@ -1,5 +1,5 @@
 import type { NotionConfig, NotionRawBlock, RichTextSegment } from '../types.js';
-import { notionPost, parsePageId, unwrapRecord } from '../notion-client.js';
+import { notionPost, saveTransactions, parsePageId, unwrapRecord } from '../notion-client.js';
 import { richText } from '../markdown/to-notion.js';
 import { richTextToMarkdown } from '../markdown/from-notion.js';
 
@@ -255,10 +255,7 @@ export async function addComment(
     },
   );
 
-  await notionPost(config, 'submitTransaction', {
-    requestId: crypto.randomUUID(),
-    transactions: [{ id: crypto.randomUUID(), spaceId: config.spaceId, operations: ops }],
-  });
+  await saveTransactions(config, ops);
 
   const mode = anchorText ? `inline on "${anchorText}"` : 'block-level';
   return `Added ${mode} comment ${commentId.replace(/-/g, '')} in new discussion ${discussionId.replace(/-/g, '')} on block ${targetId.replace(/-/g, '')}`;
@@ -309,10 +306,7 @@ export async function replyComment(
     },
   ];
 
-  await notionPost(config, 'submitTransaction', {
-    requestId: crypto.randomUUID(),
-    transactions: [{ id: crypto.randomUUID(), spaceId: config.spaceId, operations: ops }],
-  });
+  await saveTransactions(config, ops);
 
   return `Added reply ${commentId.replace(/-/g, '')} to discussion ${discId.replace(/-/g, '')}`;
 }

@@ -4,7 +4,7 @@ MCP server for Notion using internal API (cookie auth, token_v2). No workspace a
 
 ## Package
 
-- **npm**: `@shck-dev/notion-mcp` (currently 0.5.1)
+- **npm**: `@shck-dev/notion-mcp` (currently 0.5.2)
 - **GitHub**: `shck-dev/notion-mcp`
 - **Runtime**: ships a bundled, node-compatible `dist/server.js` (`#!/usr/bin/env node`), so `npx @shck-dev/notion-mcp` works without Bun. Built with `bun build` (`bun run build`); dev/test still use Bun.
 - **License**: MIT
@@ -61,11 +61,14 @@ Credentials resolve **env → `~/.notion-mcp/config.json`** (env wins): `NOTION_
 
 ## Publishing
 
+Releases are CI-driven (`.github/workflows/publish-mcp.yml`): pushing a `v*` git tag triggers npm publish via OIDC trusted publishing (no NPM_TOKEN) + MCP-registry publish. The workflow syncs the version from the tag into `package.json`/`server.json` before publishing, so the tag is the source of truth.
+
 ```bash
-npm publish --access public --otp=<code>
+# bump package.json + server.json (both version fields) + this file, commit, then:
+git tag v0.5.2 && git push origin main --tags
 ```
 
-`prepublishOnly` runs `bun run build` → bundled `dist/server.js` (the published `bin`). Version lives in `package.json` (inlined into the bundle at build time); keep `server.json` and this file in sync. Bump all when releasing.
+`prepublishOnly` runs `bun run build` → bundled `dist/server.js` (the published `bin`); the version is inlined into the bundle at build time. Keep `package.json`, `server.json`, and this file in sync with the tag.
 
 ## Do NOT commit
 - `start.sh`, `node_modules/`
@@ -104,3 +107,4 @@ Inline decorations: `**bold**` → `b`, `*italic*` → `i`, `~~strike~~` → `s`
 - Cache-lagged reads: `notion_export_page` and the comments tool both call `loadPageChunk` (live) — there is no `loadCachedPageChunk` usage and no internal verify-after-write logic to fix.
 - 0.4.0: credential-free startup (lazy config), node-compatible `dist/` build (npx works without Bun), interactive cURL-based init (`notion-mcp init` CLI + `notion_init` tool), MCP prompts + resources, and sub-page-link / empty-export notes. LobeHub validation unblocked.
 - 0.5.0: image upload fixed (the 400 was caused by calling `getUploadFileUrl` before the block existed; reordered to create→upload→patch); export now resolves notion-hosted image sources via the `www.notion.so/image` proxy to public `img.notionusercontent.com` CDN URLs (or downloads locally with `image_dir`); `notion_add_image` tool added; caption round-trips as markdown alt text.
+- **Write endpoint migration (all writes were 404ing).** Notion removed the `submitTransaction` route server-side (`404 Cannot POST /api/v3/submitTransaction`). The web client now writes through **`saveTransactionsFanout`**, which wraps each op in a `pointer { table, id, spaceId }` instead of top-level `id`/`table`. Centralized in `saveTransactions()` (`src/notion-client.ts`): op-builders still emit the legacy `{ id, table, path, command, args }` shape and the helper translates + posts. Reads (`loadPageChunk`, `syncRecordValues`) and `getUploadFileUrl` were unaffected. Verified op-by-op against a captured HAR. A 404 on the transaction endpoint now raises actionable "Notion may have changed its write API again" guidance (`NotionHttpError` carries the status). Shipped in 0.5.2.

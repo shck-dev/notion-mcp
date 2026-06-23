@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import type { NotionConfig } from '../types.js';
-import { notionPost, parsePageId } from '../notion-client.js';
+import { saveTransactions, parsePageId } from '../notion-client.js';
 import { importMarkdownToPage } from './import.js';
 
 /**
@@ -62,10 +62,7 @@ export async function createPage(
     },
   ];
 
-  await notionPost(config, 'submitTransaction', {
-    requestId: crypto.randomUUID(),
-    transactions: [{ id: crypto.randomUUID(), spaceId: config.spaceId, operations: ops }],
-  });
+  await saveTransactions(config, ops);
 
   // If markdown content provided, import it into the new page
   if (markdown) {
